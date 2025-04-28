@@ -22,6 +22,19 @@
   </div>
 
   <script>
+    // 添加 speak 函数
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); 
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
+      } else {
+        console.warn("浏览器不支持语音合成 API");
+      }
+    }
+
     // 等待DOM加载完成
     document.addEventListener('DOMContentLoaded', async () => {
       // 初始化游戏
@@ -169,28 +182,24 @@
         const targetContainer = new PIXI.Container();
         targetContainer.charData = currentTarget; // 将数据关联到 Container
 
-        // 1. 创建敌人 Emoji 文本
-        const enemyEmojiText = new PIXI.Text(currentTarget.emoji, {
-          fontFamily: 'Arial', // 确保字体支持 Emoji
-          fontSize: 40 // Emoji 字号可以大一些
+        // 1. 创建敌人 Emoji 文本 (添加 name)
+        const enemyEmojiText = new PIXI.Text(currentTarget.emoji, { 
+            fontFamily: 'Arial', fontSize: 40 
         });
-        // 将 Emoji 放在 Container 的 (0, 0) 位置作为基准
+        enemyEmojiText.name = 'emojiText'; // 添加名称
         enemyEmojiText.x = 0;
         enemyEmojiText.y = 0;
-        enemyEmojiText.anchor.set(0.5, 0.5); // 设置锚点为中心，方便定位
+        enemyEmojiText.anchor.set(0.5, 0.5);
         targetContainer.addChild(enemyEmojiText);
 
-        // 2. 创建汉字文本 (显示在 Emoji 上方)
-        const charText = new PIXI.Text(currentTarget.char, {
-          fontFamily: 'Arial',
-          fontSize: 24, // 可以适当调小一点
-          fill: 0x000000, // 黑色文字，更清晰
-          align: 'center'
+        // 2. 创建汉字文本 (添加 name)
+        const charText = new PIXI.Text(currentTarget.char, { 
+            fontFamily: 'Arial', fontSize: 24, fill: 0x000000, align: 'center' 
         });
-        // 定位文字在 Emoji 头顶居中
-        charText.anchor.set(0.5, 1); // 锚点设置在文字底部中心
-        charText.x = enemyEmojiText.x; // 水平居中对齐 Emoji 中心
-        charText.y = enemyEmojiText.y - enemyEmojiText.height / 2 - 5; // Emoji 中心点上方再减去 Emoji 高度一半，留 5px 间距
+        charText.name = 'hanziText'; // 添加名称
+        charText.anchor.set(0.5, 1);
+        charText.x = enemyEmojiText.x;
+        charText.y = enemyEmojiText.y - enemyEmojiText.height / 2 - 5;
         targetContainer.addChild(charText);
 
         // 设置 Container 的初始位置 (基于新的内容)
@@ -198,15 +207,17 @@
         targetContainer.x = Math.random() * (app.screen.width - containerBounds.width);
         targetContainer.y = -containerBounds.height; // 从屏幕顶部外开始
 
-        currentTargetSprite = targetContainer; // 全局变量现在指向 Container
-        
+        currentTargetSprite = targetContainer; 
         app.stage.addChild(targetContainer);
         console.log(`目标组合 '${currentTarget.char}' 已添加到舞台...`);
 
+        // **朗读汉字**
+        speak(currentTarget.char);
+
         // 移动 Container 的逻辑
-        const move = (ticker) => {
+        const move = (ticker) => { 
           const delta = ticker.deltaTime;
-          const speed = 1.8; 
+          const speed = 1.2; // 再次调慢速度
 
           // 计算朝向玩家的方向向量 (目标是 Container 的中心)
           const dx = playerPosition.x - (targetContainer.x + containerBounds.width / 2);
@@ -220,7 +231,7 @@
             targetContainer.y += normalizedDy * speed * delta;
           }
 
-          // 碰撞检测逻辑 (使用 Container 的边界)
+          // 碰撞检测逻辑
           const enemyBoundsRect = targetContainer.getBounds().rectangle; 
           const playerBoundsRect = playerSprite.getBounds().rectangle; 
 
@@ -231,94 +242,129 @@
              healthText.text = `生命值: ${playerHealth}`; // 更新显示
              console.log(`玩家生命值剩余: ${playerHealth}`);
 
-             // 移除敌人 Container
+             // 移除敌人
              app.ticker.remove(move);
-             if (app.stage.children.includes(targetContainer)) { // 检查并移除 Container
-               app.stage.removeChild(targetContainer);
+             if (app.stage.children.includes(targetContainer)) {
+                app.stage.removeChild(targetContainer);
              }
+             // 清理状态
+             const hitTargetData = currentTarget; 
+             currentTarget = null;
+             currentTargetSprite = null;
+             currentTargetTickerCallback = null;
 
-             // 判断游戏是否结束
              if (playerHealth <= 0) {
                console.log("游戏结束!");
                healthText.text = "游戏结束!"; // 更新文本提示
                // (待实现) 显示游戏结束画面或提示
                app.ticker.stop(); // 停止所有 ticker 更新，暂停游戏
              } else {
-               setTimeout(createFlyingTarget, 500);
+                console.log(`玩家被 ${hitTargetData?.char || '未知目标'} 击中，准备生成下一个`);
+                setTimeout(() => {
+                     if (!currentTarget) { 
+                        createFlyingTarget();
+                     }
+                }, 500); 
              }
-           }
-           // 移出屏幕底部的逻辑 (也要基于 Container)
+          }
+           // 移出屏幕底部
            else if (targetContainer.y > app.screen.height + 20) {
               console.log(`目标组合 '${currentTarget.char}' 已移出屏幕底部 (未击中)`);
               app.ticker.remove(move);
               if (app.stage.children.includes(targetContainer)) {
                   app.stage.removeChild(targetContainer);
               }
+              const missedTargetData = currentTarget;
               currentTarget = null;
               currentTargetSprite = null;
               currentTargetTickerCallback = null;
-              setTimeout(createFlyingTarget, 800); 
+              console.log(`目标 ${missedTargetData?.char || '未知目标'} 移出屏幕，准备生成下一个`);
+              setTimeout(() => {
+                    if (!currentTarget) {
+                        createFlyingTarget();
+                    }
+              }, 800);
           }
         };
-        currentTargetTickerCallback = move; // 存储 Container 的 Ticker 回调
+        currentTargetTickerCallback = move;
         app.ticker.add(move);
       }
 
-      // 检查答案 - 击毁效果定位和移除需要对应 Container
+      // 检查答案
       function checkAnswer(selectedTone) {
         if (!currentTarget) {
           console.log("当前没有目标，无法检查答案");
           return; // 如果没有目标，则不执行任何操作
         }
 
-        console.log(`检查答案: 目标 '${currentTarget.char}'(tone ${currentTarget.tone}), 选择 tone ${selectedTone}`); // 日志
+        console.log(`检查答案: 目标 '${currentTarget.char}'(tone ${currentTarget.tone}), 选择 tone ${selectedTone}`);
 
-        if (selectedTone === currentTarget.tone) {
+        if (currentTarget && selectedTone === currentTarget.tone) { // 加强检查
           targetHealth -= attackPower;
           console.log(`声调正确! 目标 '${currentTarget.char}' 生命值剩余: ${targetHealth}`);
 
-          // 检查是否击毁
           if (targetHealth <= 0) {
-            console.log(`目标组合 '${currentTarget.char}' 已击毁!`); // 更新日志
+            console.log(`目标组合 '${currentTarget.char}' 已击毁! 显示拼音并朗读...`);
 
-            // 停止移动并移除旧目标 Container
             if (currentTargetTickerCallback) {
               app.ticker.remove(currentTargetTickerCallback);
             }
-            // 使用 currentTargetSprite (现在是 Container)
-            if (currentTargetSprite && app.stage.children.includes(currentTargetSprite)) {
-              app.stage.removeChild(currentTargetSprite); 
-            }
 
-            // 显示击毁效果 (定位到 Container 的位置)
-            const boom = new PIXI.Text('💥 击毁!', {
-              fontFamily: 'Arial',
-              fontSize: 36,
-              fill: 0xFF4500
-            });
-            if (currentTargetSprite) {
-                 boom.x = currentTargetSprite.x + currentTargetSprite.width / 2 - boom.width / 2; // 居中
-                 boom.y = currentTargetSprite.y + currentTargetSprite.height / 2 - boom.height / 2;
-            } else { 
-                 // ... (备用定位逻辑)
-            }
-            app.stage.addChild(boom);
-            
-            // 清理全局状态
-            currentTarget = null;
-            currentTargetSprite = null;
-            currentTargetTickerCallback = null;
+            const destroyedContainer = currentTargetSprite;
+            const finalTargetData = currentTarget; // 保存数据
 
-            // 准备下一个目标 Container
-            setTimeout(() => {
-              if (app.stage.children.includes(boom)) {
-                 app.stage.removeChild(boom);
+            if (destroyedContainer && destroyedContainer.parent) { // 确保还在舞台上
+              const hanziText = destroyedContainer.getChildByName('hanziText');
+              const emojiText = destroyedContainer.getChildByName('emojiText');
+
+              if (hanziText) {
+                hanziText.visible = false;
               }
-              createFlyingTarget();
-            }, 800); // 延迟后创建新目标 Container
+
+              const pinyinText = new PIXI.Text(finalTargetData.pinyin, {
+                fontFamily: 'Arial', fontSize: 18, fill: 0x888888, align: 'center'
+              });
+              pinyinText.name = 'pinyinText';
+              pinyinText.anchor.set(0.5, 1);
+              if (emojiText) { 
+                  pinyinText.x = emojiText.x;
+                  pinyinText.y = emojiText.y - emojiText.height / 2 - 5;
+              } else { 
+                  pinyinText.x = destroyedContainer.width / 2;
+                  pinyinText.y = 0;
+              }
+              destroyedContainer.addChild(pinyinText);
+
+              speak(finalTargetData.char);
+
+              // 清理全局引用，但不移除对象
+              currentTarget = null;
+              currentTargetSprite = null;
+              currentTargetTickerCallback = null; 
+
+              setTimeout(() => {
+                console.log(`清理被击毁的目标 ${finalTargetData.char}`);
+                if (destroyedContainer.parent) { // 再次检查父对象
+                  app.stage.removeChild(destroyedContainer);
+                }
+                // 在清理完成后，检查是否需要创建新目标
+                if (playerHealth > 0 && !currentTarget) { 
+                   createFlyingTarget();
+                }
+              }, 1500); 
+
+            } else {
+              console.error("击毁时无法找到目标 Container 或已不在舞台!");
+              currentTarget = null;
+              currentTargetSprite = null;
+              currentTargetTickerCallback = null;
+              if (playerHealth > 0) {
+                 createFlyingTarget();
+              }
+            }
 
           } else {
-            // 未击毁，仅显示命中效果
+            // 未击毁，仅显示命中效果 (注意检查 hitText 是否存在)
             const hitText = new PIXI.Text('✓ 正确!', {
               fontFamily: 'Arial',
               fontSize: 24,
@@ -329,32 +375,32 @@
             app.stage.addChild(hitText);
             
             setTimeout(() => {
-              if (app.stage.children.includes(hitText)) {
-                  app.stage.removeChild(hitText);
-              }
+              if (hitText.parent) { app.stage.removeChild(hitText); }
             }, 500);
           }
-        } else {
-          // 错误反馈
-          console.log(`声调错误! 目标 '${currentTarget.char}' 需要 tone ${currentTarget.tone}, 选择了 tone ${selectedTone}`); // 日志
-          const missText = new PIXI.Text('✗ 声调错误!', { // 更新提示信息
-            fontFamily: 'Arial',
-            fontSize: 24,
-            fill: 0xFF0000
-          });
-          missText.x = app.screen.width / 2 - 50;
-          missText.y = 50;
-          app.stage.addChild(missText);
-          
-          setTimeout(() => {
-            app.stage.removeChild(missText);
-          }, 500);
+
+        } else if (currentTarget) { // currentTarget 存在但声调错误
+            console.log(`声调错误! 目标 '${currentTarget.char}' 需要 tone ${currentTarget.tone}, 选择了 tone ${selectedTone}`);
+            const missText = new PIXI.Text('✗ 声调错误!', {
+              fontFamily: 'Arial',
+              fontSize: 24,
+              fill: 0xFF0000
+            });
+            missText.x = app.screen.width / 2 - 50;
+            missText.y = 50;
+            app.stage.addChild(missText);
+            
+            setTimeout(() => {
+              if (missText.parent) { app.stage.removeChild(missText); }
+            }, 500);
         }
       }
 
       // 初始化游戏
       // createCharacterButtons();
-      createFlyingTarget();
+      if (!currentTarget) { // 初始启动
+          createFlyingTarget();
+      }
 
       // 绑定音调按钮 - 调用新的 checkAnswer
       document.querySelectorAll('.tone-btn').forEach(btn => {
@@ -368,7 +414,7 @@
           }
         });
       });
-    });
+    }); // <-- 补上 DOMContentLoaded 的结束括号和分号
   </script>
 </body>
 </html>
