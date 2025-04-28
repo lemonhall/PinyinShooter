@@ -23,6 +23,37 @@
       margin: 10px 12px;
       padding: 18px 25px;
     }
+    #game-over-overlay {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.7);
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    #game-over-overlay h1 {
+      color: white;
+      font-size: 6vw;
+      margin-bottom: 30px;
+      text-shadow: 2px 2px 4px black;
+    }
+    #game-over-overlay button {
+      font-size: 4vw;
+      padding: 15px 30px;
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      background-color: #4CAF50;
+      color: white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      transition: background-color 0.2s;
+    }
   </style>
 </head>
 <body>
@@ -33,6 +64,11 @@
       <button class="tone-btn" data-tone="2">二声 ˊ</button>
       <button class="tone-btn" data-tone="3">三声 ˇ</button>
       <button class="tone-btn" data-tone="4">四声 ˋ</button>
+    </div>
+    <!-- 添加游戏结束界面 -->
+    <div id="game-over-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); z-index: 20; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+      <h1 style="color: white; font-size: 6vw; margin-bottom: 30px; text-shadow: 2px 2px 4px black;">游戏结束!</h1>
+      <button id="restart-btn" style="font-size: 4vw; padding: 15px 30px; cursor: pointer; border: none; border-radius: 10px; background-color: #4CAF50; color: white; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: background-color 0.2s;">重新开始</button>
     </div>
   </div>
 
@@ -178,6 +214,13 @@
       }
     }
 
+    // 添加全局游戏状态变量
+    let playerScore = 0;
+    let scoreText = null;
+    let isGameOver = false;
+    const animatingFeedbackTexts = []; // 存储需要动画的文本
+    let nextTargetTimeoutId = null; // 存储创建下一个目标的 Timeout ID
+
     // 等待DOM加载完成
     document.addEventListener('DOMContentLoaded', async () => {
       // 初始化游戏
@@ -191,32 +234,60 @@
       const container = document.getElementById('game-container');
       container.insertBefore(app.view, container.firstChild);
 
-      // 添加主 Ticker 循环处理屏幕震动
+      // 添加主 Ticker 循环处理屏幕震动 和 文本动画
       app.ticker.add((ticker) => {
           const deltaMS = ticker.deltaMS; 
+          const deltaFactor = ticker.deltaTime; // 用于帧率无关的移动
 
+          // 处理屏幕震动
           if (shakeDuration > 0) {
               shakeDuration -= deltaMS;
               if (shakeDuration <= 0) {
-                  // 震动结束
-                  app.stage.x = originalStagePosition.x;
-                  app.stage.y = originalStagePosition.y;
-                  shakeIntensity = 0;
-                  shakeDuration = 0;
+                  // 震动结束 - 开始平滑恢复
+                  shakeIntensity = 0; // 停止施加新的随机偏移
+                  shakeDuration = 0; 
+                  console.log("Shake ended, starting smooth return.");
               } else {
                   // 应用震动偏移
                   const shakeX = (Math.random() - 0.5) * 2 * shakeIntensity;
                   const shakeY = (Math.random() - 0.5) * 2 * shakeIntensity;
-                  // 基于原始位置计算，防止漂移
                   app.stage.x = originalStagePosition.x + shakeX;
                   app.stage.y = originalStagePosition.y + shakeY;
               }
-          } else {
-             // 确保不在震动时舞台位置正确 (可选，以防万一)
-             if (app.stage.x !== originalStagePosition.x || app.stage.y !== originalStagePosition.y) {
-                 // app.stage.x = originalStagePosition.x;
-                 // app.stage.y = originalStagePosition.y;
-             }
+          } else if (app.stage.x !== originalStagePosition.x || app.stage.y !== originalStagePosition.y) {
+              // 如果不在震动中，但位置未恢复，则平滑移回
+              const returnSpeed = 0.2; // 恢复速度因子 (0到1之间)
+              app.stage.x += (originalStagePosition.x - app.stage.x) * returnSpeed * deltaFactor;
+              app.stage.y += (originalStagePosition.y - app.stage.y) * returnSpeed * deltaFactor;
+
+              // 如果非常接近目标位置，直接设置，避免无限接近
+              if (Math.abs(app.stage.x - originalStagePosition.x) < 0.1 && Math.abs(app.stage.y - originalStagePosition.y) < 0.1) {
+                  app.stage.x = originalStagePosition.x;
+                  app.stage.y = originalStagePosition.y;
+                  console.log("Stage returned to original position.");
+              }
+          }
+
+          // 处理反馈文本动画
+          for (let i = animatingFeedbackTexts.length - 1; i >= 0; i--) {
+              const feedback = animatingFeedbackTexts[i];
+              
+              // 向上移动
+              feedback.text.y -= feedback.vy * deltaFactor; 
+              
+              // 减少生命周期
+              feedback.life -= deltaMS;
+              
+              // 根据生命周期计算透明度 (逐渐消失)
+              feedback.text.alpha = Math.max(0, feedback.life / feedback.initialLife);
+              
+              // 如果生命周期结束，移除
+              if (feedback.life <= 0) {
+                  if (feedback.text.parent) {
+                      app.stage.removeChild(feedback.text);
+                  }
+                  animatingFeedbackTexts.splice(i, 1); // 从数组中移除
+              }
           }
       });
 
@@ -293,25 +364,6 @@
       let playerPosition = { x: 0, y: 0 }; // 改为变量，动态计算
       let playerSprite = null; // 玩家的 PIXI 对象
       let healthText = null; // 显示生命值的 PIXI.Text 对象
-      // let playerScore = 0; // 如果需要分数，取消注释
-      // let scoreText = null;
-
-      // 创建操作区 (定义高度变量)
-      const controlAreaHeight = 100;
-      const controlArea = new PIXI.Graphics();
-      app.stage.addChild(controlArea); // 先添加，后续在 updateLayout 中绘制 (现在不绘制了)
-
-      // 创建玩家图形 (使用 SVG 盾牌)
-      const playerSvgString = '<svg width="60" height="70" viewBox="0 0 60 70" xmlns="http://www.w3.org/2000/svg"><path d="M 5 15 A 25 25 0 0 1 55 15 L 55 50 L 30 65 L 5 50 Z" fill="dodgerblue" stroke="black" stroke-width="2"/></svg>';
-      playerSprite = new PIXI.Graphics().svg(playerSvgString);
-      playerSprite.scale.set(2.5, 2.5); // 将玩家盾牌放大到 2.5 倍
-      console.log("玩家 (SVG盾牌) 已创建并添加到舞台，已缩放");
-
-      // 定位玩家 (基于新的 SVG 图形尺寸自动计算居中)
-      playerSprite.x = playerPosition.x - playerSprite.width / 2; 
-      playerSprite.y = playerPosition.y - playerSprite.height / 2;
-      app.stage.addChild(playerSprite);
-      console.log("玩家 (SVG盾牌) 已创建并添加到舞台，已缩放");
 
       // 创建生命值文本
       healthText = new PIXI.Text(`生命值: ${playerHealth}`, {
@@ -324,8 +376,32 @@
       app.stage.addChild(healthText);
       console.log("生命值文本已创建");
 
-      // 创建汉字按钮 (现在注释掉，因为不再需要)
-      // createCharacterButtons();
+      // 创建分数文本
+      scoreText = new PIXI.Text(`分数: ${playerScore}`, {
+        fontFamily: 'Arial', fontSize: 42, fill: 0x000000 
+      });
+      scoreText.anchor.set(1, 0); 
+      scoreText.x = app.screen.width - 10; 
+      scoreText.y = 10;
+      app.stage.addChild(scoreText);
+      console.log("分数文本已创建");
+
+      // 创建玩家图形 (使用 SVG 盾牌)
+      const playerSvgString = '<svg width="60" height="70" viewBox="0 0 60 70" xmlns="http://www.w3.org/2000/svg"><path d="M 5 15 A 25 25 0 0 1 55 15 L 55 50 L 30 65 L 5 50 Z" fill="dodgerblue" stroke="black" stroke-width="2"/></svg>';
+      playerSprite = new PIXI.Graphics().svg(playerSvgString);
+      playerSprite.scale.set(2.5, 2.5); // 将玩家盾牌放大到 2.5 倍
+      // console.log("玩家 (SVG盾牌) 已创建并添加到舞台，已缩放"); // 移除重复日志
+
+      // 定位玩家 (基于新的 SVG 图形尺寸自动计算居中)
+      playerSprite.x = playerPosition.x - playerSprite.width / 2; 
+      playerSprite.y = playerPosition.y - playerSprite.height / 2;
+      app.stage.addChild(playerSprite);
+      // console.log("玩家 (SVG盾牌) 已创建并添加到舞台，已缩放"); // 移除重复日志
+
+      // 创建操作区 (定义高度变量)
+      const controlAreaHeight = 100;
+      const controlArea = new PIXI.Graphics();
+      app.stage.addChild(controlArea); // 先添加，后续在 updateLayout 中绘制 (现在不绘制了)
 
       // 定义 updateLayout 函数
       function updateLayout() {
@@ -341,17 +417,21 @@
              playerSprite.y = playerPosition.y - playerSprite.height / 2;
         }
 
-        // 更新操作区绘制 (不再需要绘制画布上的操作区)
-        /*
-        controlArea.clear(); // 清除旧的绘制
-        controlArea.beginFill(0xFFFFFF, 0.7)
-                   .drawRect(0, app.screen.height - controlAreaHeight, app.screen.width, controlAreaHeight)
-                   .endFill();
-        */
+        // 更新分数文本位置
+        if (scoreText) {
+            scoreText.x = app.screen.width - 10;
+            scoreText.y = 10;
+        }
       }
 
       // 创建飞来的目标 (组合形式：敌人 + 头顶文字)
       function createFlyingTarget() {
+        // 防御性检查：如果当前已有目标，则不创建新的
+        if (currentTarget) {
+            console.warn("尝试创建新目标，但当前目标已存在，已阻止。");
+            return; 
+        }
+
         const targetCharIndex = Math.floor(Math.random() * characters.length);
         const targetChar = characters[targetCharIndex];
 
@@ -368,6 +448,9 @@
         // 创建 Container
         const targetContainer = new PIXI.Container();
         targetContainer.charData = currentTarget; // 将数据关联到 Container
+        targetContainer.isEnemy = true; // 添加标记，方便识别
+        targetContainer.uniqueId = Date.now() + Math.random(); // 添加唯一ID，用于调试
+        console.log(`[${targetContainer.uniqueId}] 创建Container`);
 
         // 1. 创建敌人 Emoji 文本 (添加 name)
         const enemyEmojiText = new PIXI.Text(currentTarget.emoji, { 
@@ -406,80 +489,106 @@
 
         // 移动 Container 的逻辑
         const move = (ticker) => { 
-          const delta = ticker.deltaTime;
-          const speed = 1.5; // 加快速度 (原为 0.8)
+            // **新增检查**: 如果 Container 已不在舞台，则停止并移除回调
+            if (!targetContainer.parent) {
+                console.warn(`[${targetContainer.uniqueId}] - Move function executed but container not on stage. Removing ticker.`);
+                app.ticker.remove(move); 
+                return; 
+            }
 
-          // 计算朝向玩家的方向向量 (目标是 Container 的中心)
-          const dx = playerPosition.x - (targetContainer.x + containerBounds.width / 2);
-          const dy = playerPosition.y - (targetContainer.y + containerBounds.height / 2);
-          const length = Math.sqrt(dx * dx + dy * dy);
+            const delta = ticker.deltaTime;
+            const speed = 1.5; // 加快速度 (原为 0.8)
 
-          if (length > 1) { 
-            const normalizedDx = dx / length;
-            const normalizedDy = dy / length;
-            targetContainer.x += normalizedDx * speed * delta;
-            targetContainer.y += normalizedDy * speed * delta;
-          }
+            // 计算朝向玩家的方向向量 (目标是 Container 的中心)
+            const dx = playerPosition.x - (targetContainer.x + containerBounds.width / 2);
+            const dy = playerPosition.y - (targetContainer.y + containerBounds.height / 2);
+            const length = Math.sqrt(dx * dx + dy * dy);
 
-          // 碰撞检测逻辑
-          const enemyBoundsRect = targetContainer.getBounds().rectangle; 
-          const playerBoundsRect = playerSprite.getBounds().rectangle; 
+            if (length > 1) { 
+                const normalizedDx = dx / length;
+                const normalizedDy = dy / length;
+                targetContainer.x += normalizedDx * speed * delta;
+                targetContainer.y += normalizedDy * speed * delta;
+            }
 
-          if (enemyBoundsRect && playerBoundsRect && enemyBoundsRect.intersects(playerBoundsRect)) { 
-             console.log(`目标组合 '${currentTarget.char}' 击中玩家!`);
-             
-             // **添加玩家被击中效果**
-             startShake(10, 250); // 较强震动
-             flashSprite(playerSprite, 0xFF0000, 200); // 玩家闪红
+            // 碰撞检测逻辑
+            const enemyBoundsRect = targetContainer.getBounds().rectangle; 
+            const playerBoundsRect = playerSprite.getBounds().rectangle; 
 
-             // 减少玩家生命值
-             playerHealth -= 10; // 每次击中减少 10 点生命值
-             healthText.text = `生命值: ${playerHealth}`; // 更新显示
-             console.log(`玩家生命值剩余: ${playerHealth}`);
+            if (enemyBoundsRect && playerBoundsRect && enemyBoundsRect.intersects(playerBoundsRect)) { 
+                // 再次检查 currentTarget 是否有效，防止在检查和执行之间被 nullify
+                if (currentTarget) {
+                    const currentTargetIdForLog = targetContainer.uniqueId; // 安全获取 ID
+                    const currentTargetCharForLog = currentTarget.char; // 安全获取 char
 
-             // 移除敌人
-             app.ticker.remove(move);
-             if (app.stage.children.includes(targetContainer)) {
-                app.stage.removeChild(targetContainer);
-             }
-             // 清理状态
-             const hitTargetData = currentTarget; 
-             currentTarget = null;
-             currentTargetSprite = null;
-             currentTargetTickerCallback = null;
+                    console.log(`[${currentTargetIdForLog}] - 碰撞玩家 - ${currentTargetCharForLog} 击中!`); // 使用安全获取的变量
+                    startShake(10, 250); 
+                    flashSprite(playerSprite, 0xFF0000, 200); 
 
-             if (playerHealth <= 0) {
-               console.log("游戏结束!");
-               healthText.text = "游戏结束!"; // 更新文本提示
-               // (待实现) 显示游戏结束画面或提示
-               app.ticker.stop(); // 停止所有 ticker 更新，暂停游戏
-             } else {
-                console.log(`玩家被 ${hitTargetData?.char || '未知目标'} 击中，准备生成下一个`);
-                setTimeout(() => {
-                     if (!currentTarget) { 
-                        createFlyingTarget();
-                     }
-                }, 500); 
-             }
-          }
-           // 移出屏幕底部
-           else if (targetContainer.y > app.screen.height + 20) {
-              console.log(`目标组合 '${currentTarget.char}' 已移出屏幕底部 (未击中)`);
-              app.ticker.remove(move);
-              if (app.stage.children.includes(targetContainer)) {
-                  app.stage.removeChild(targetContainer);
-              }
-              const missedTargetData = currentTarget;
-              currentTarget = null;
-              currentTargetSprite = null;
-              currentTargetTickerCallback = null;
-              console.log(`目标 ${missedTargetData?.char || '未知目标'} 移出屏幕，准备生成下一个`);
-              setTimeout(() => {
-                    if (!currentTarget) {
+                    playerHealth -= 10; 
+                    healthText.text = `生命值: ${playerHealth}`; 
+                    console.log(`玩家生命值剩余: ${playerHealth}`);
+
+                    // 移除敌人
+                    console.log(`[${currentTargetIdForLog}] - 碰撞玩家 - 准备移除`);
+                    app.ticker.remove(move); 
+                    if (app.stage.children.includes(targetContainer)) {
+                        app.stage.removeChild(targetContainer);
+                        console.log(`[${currentTargetIdForLog}] - 碰撞玩家 - 已从舞台移除`);
+                    } else {
+                        console.warn(`[${currentTargetIdForLog}] - 碰撞玩家 - 尝试移除时已不在舞台`);
+                    }
+                    
+                    // 清理状态 (在访问完属性之后再设置为 null)
+                    currentTarget = null; 
+                    currentTargetSprite = null;
+                    currentTargetTickerCallback = null; 
+
+                    if (playerHealth <= 0 && !isGameOver) { 
+                        console.log("游戏结束!");
+                        isGameOver = true;
+                        app.ticker.stop(); 
+                        document.getElementById('game-over-overlay').style.display = 'flex'; 
+                    } else if (!isGameOver) { 
+                        console.log(`玩家被 ${currentTargetCharForLog} 击中，准备生成下一个`); // 使用安全获取的变量
+                        clearTimeout(nextTargetTimeoutId); 
+                        nextTargetTimeoutId = setTimeout(() => {
+                            nextTargetTimeoutId = null; 
+                            if (!currentTarget && !isGameOver) { 
+                                createFlyingTarget();
+                            }
+                        }, 500); 
+                    }
+                } else {
+                    // 如果在碰撞检测通过后发现 currentTarget 已经是 null，记录一下
+                    console.warn(`Collision detected, but currentTarget was already null. Skipping effects.`);
+                }
+            }
+            // 移出屏幕底部
+            else if (targetContainer.y > app.screen.height + 20) {
+                const targetId = targetContainer.uniqueId; // 保存ID用于日志
+                console.log(`[${targetId}] - 飞出屏幕 - 准备移除`);
+                app.ticker.remove(move);
+                if (app.stage.children.includes(targetContainer)) {
+                    app.stage.removeChild(targetContainer);
+                    console.log(`[${targetId}] - 飞出屏幕 - 已从舞台移除`);
+                } else {
+                    console.warn(`[${targetId}] - 飞出屏幕 - 尝试移除时已不在舞台`);
+                }
+                const missedTargetData = currentTarget;
+                currentTarget = null;
+                currentTargetSprite = null;
+                currentTargetTickerCallback = null;
+                console.log(`目标 ${missedTargetData?.char || '未知目标'} 移出屏幕，准备生成下一个`);
+                clearTimeout(nextTargetTimeoutId); // 清除之前的 timeout
+                nextTargetTimeoutId = setTimeout(() => {
+                    // 清理 timeout ID 引用
+                    nextTargetTimeoutId = null;
+                    if (!currentTarget && !isGameOver) {
                         createFlyingTarget();
                     }
-              }, 800);
-          }
+                }, 800);
+            }
         };
         currentTargetTickerCallback = move;
         app.ticker.add(move);
@@ -547,13 +656,18 @@
               currentTargetSprite = null;
               currentTargetTickerCallback = null; 
 
-              setTimeout(() => {
-                console.log(`清理被击毁的目标 ${finalTargetData.char}`);
+              clearTimeout(nextTargetTimeoutId); // 清除之前的 timeout
+              nextTargetTimeoutId = setTimeout(() => {
+                nextTargetTimeoutId = null;
+                console.log(`[${destroyedContainer.uniqueId}] - 击毁 - 准备移除 (延迟后)`);
                 if (destroyedContainer.parent) { // 再次检查父对象
                   app.stage.removeChild(destroyedContainer);
+                  console.log(`[${destroyedContainer.uniqueId}] - 击毁 - 已从舞台移除 (延迟后)`);
+                } else {
+                  console.warn(`[${destroyedContainer.uniqueId}] - 击毁 - 延迟后尝试移除时已不在舞台`);
                 }
                 // 在清理完成后，检查是否需要创建新目标
-                if (playerHealth > 0 && !currentTarget) { 
+                if (playerHealth > 0 && !currentTarget && !isGameOver) { 
                    createFlyingTarget();
                 }
               }, 1500); 
@@ -580,13 +694,16 @@
               stroke: '#006400',
               strokeThickness: 3
             });
-            hitText.x = app.screen.width / 2 - 50;
-            hitText.y = 50;
+            hitText.x = app.screen.width / 2 - hitText.width / 2; // 居中显示
+            hitText.y = app.screen.height / 3; // 稍微靠上一点
             app.stage.addChild(hitText);
-            
-            setTimeout(() => {
-              if (hitText.parent) { app.stage.removeChild(hitText); }
-            }, 500);
+            // 加入动画数组
+            animatingFeedbackTexts.push({
+              text: hitText,
+              life: 800, // 持续 800ms
+              initialLife: 800,
+              vy: 1.5 // 上升速度
+            });
           }
 
         } else if (currentTarget) { // currentTarget 存在但声调错误
@@ -606,14 +723,17 @@
               stroke: '#8B0000',
               strokeThickness: 3
             });
-            missText.x = app.screen.width / 2 - 50;
-            missText.y = 50;
+            missText.x = app.screen.width / 2 - missText.width / 2; // 居中显示
+            missText.y = app.screen.height / 3; // 稍微靠上一点
             app.stage.addChild(missText);
-            
-            setTimeout(() => {
-              if (missText.parent) { app.stage.removeChild(missText); }
-            }, 500);
-        }
+            // 加入动画数组
+            animatingFeedbackTexts.push({
+              text: missText,
+              life: 800, // 持续 800ms
+              initialLife: 800,
+              vy: 1.5 // 上升速度
+            });
+          }
       }
 
       // 初始布局设置
@@ -626,7 +746,6 @@
       });
 
       // 初始化游戏
-      // createCharacterButtons();
       if (!currentTarget) { // 初始启动
           createFlyingTarget();
       }
@@ -660,6 +779,52 @@
           }
         });
       });
+
+      // 添加 restartGame 函数
+      function restartGame() {
+          console.log("重新开始游戏...");
+          // 清除可能存在的延时创建任务
+          clearTimeout(nextTargetTimeoutId);
+          nextTargetTimeoutId = null;
+
+          // 停止当前 Ticker (如果还在运行)
+          app.ticker.stop();
+
+          // 清理舞台上的敌人对象和它们的 Ticker 回调
+          console.log("Restart: 开始清理舞台上的敌人...");
+          for (let i = app.stage.children.length - 1; i >= 0; i--) {
+              const child = app.stage.children[i];
+              if (child.isEnemy) { // 检查标记
+                  console.log(`Restart: 找到敌人 [${child.uniqueId}]，尝试移除...`);
+                  // 尝试停止可能关联的 ticker (虽然引用已丢失，但直接移除对象更保险)
+                  // 注意：无法直接获取其 ticker 回调，只能依赖移除对象
+                  app.stage.removeChild(child);
+                  console.log(`Restart: 敌人 [${child.uniqueId}] 已移除`);
+              }
+          }
+          console.log("Restart: 敌人清理完毕。");
+
+          // 重置状态变量
+          playerHealth = 100;
+          playerScore = 0;
+          isGameOver = false;
+          currentTarget = null;
+          currentTargetSprite = null;
+          currentTargetTickerCallback = null;
+          shakeDuration = 0;
+          healthText.text = `生命值: ${playerHealth}`;
+          scoreText.text = `分数: ${playerScore}`;
+          document.getElementById('game-over-overlay').style.display = 'none';
+          // 清理屏幕对象 (这里需要更完善的逻辑)
+          app.stage.x = originalStagePosition.x;
+          app.stage.y = originalStagePosition.y;
+          app.ticker.start();
+          createFlyingTarget();
+      }
+
+      // 绑定重新开始按钮
+      const restartBtn = document.getElementById('restart-btn');
+      restartBtn.addEventListener('click', restartGame);
     }); // <-- 补上 DOMContentLoaded 的结束括号和分号
   </script>
 </body>
