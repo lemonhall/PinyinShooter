@@ -38,14 +38,35 @@
 
       // 游戏数据
       const characters = [
-        { char: '猫', pinyin: 'māo', tone: 1 },
-        { char: '狗', pinyin: 'gǒu', tone: 3 },
-        { char: '书', pinyin: 'shū', tone: 1 },
-        { char: '笔', pinyin: 'bǐ', tone: 3 },
-        { char: '水', pinyin: 'shuǐ', tone: 3 },
-        { char: '火', pinyin: 'huǒ', tone: 3 },
-        { char: '山', pinyin: 'shān', tone: 1 },
-        { char: '人', pinyin: 'rén', tone: 2 }
+        { char: '猫', pinyin: 'māo', tone: 1, emoji: '🐱' },
+        { char: '狗', pinyin: 'gǒu', tone: 3, emoji: '🐶' },
+        { char: '书', pinyin: 'shū', tone: 1, emoji: '📖' },
+        { char: '笔', pinyin: 'bǐ', tone: 3, emoji: '✏️' },
+        { char: '水', pinyin: 'shuǐ', tone: 3, emoji: '💧' },
+        { char: '火', pinyin: 'huǒ', tone: 3, emoji: '🔥' },
+        { char: '山', pinyin: 'shān', tone: 1, emoji: '⛰️' },
+        { char: '人', pinyin: 'rén', tone: 2, emoji: '🧑' },
+        { char: '天', pinyin: 'tiān', tone: 1, emoji: '☀️' },
+        { char: '地', pinyin: 'dì', tone: 4, emoji: '🌍' },
+        { char: '月', pinyin: 'yuè', tone: 4, emoji: '🌙' },
+        { char: '日', pinyin: 'rì', tone: 4, emoji: '☀️' },
+        { char: '星', pinyin: 'xīng', tone: 1, emoji: '⭐' },
+        { char: '云', pinyin: 'yún', tone: 2, emoji: '☁️' },
+        { char: '风', pinyin: 'fēng', tone: 1, emoji: '🌬️' },
+        { char: '雨', pinyin: 'yǔ', tone: 3, emoji: '🌧️' },
+        { char: '电', pinyin: 'diàn', tone: 4, emoji: '⚡' },
+        { char: '花', pinyin: 'huā', tone: 1, emoji: '🌸' },
+        { char: '草', pinyin: 'cǎo', tone: 3, emoji: '🌿' },
+        { char: '树', pinyin: 'shù', tone: 4, emoji: '🌳' },
+        { char: '鸟', pinyin: 'niǎo', tone: 3, emoji: '🐦' },
+        { char: '鱼', pinyin: 'yú', tone: 2, emoji: '🐟' },
+        { char: '马', pinyin: 'mǎ', tone: 3, emoji: '🐎' },
+        { char: '牛', pinyin: 'niú', tone: 2, emoji: '🐂' },
+        { char: '羊', pinyin: 'yáng', tone: 2, emoji: '🐑' },
+        { char: '左', pinyin: 'zuǒ', tone: 3, emoji: '👈' },
+        { char: '右', pinyin: 'yòu', tone: 4, emoji: '👉' },
+        { char: '大', pinyin: 'dà', tone: 4, emoji: '🐘' },
+        { char: '小', pinyin: 'xiǎo', tone: 3, emoji: '🐭' }
       ];
 
       let currentTarget = null;
@@ -90,108 +111,95 @@
       app.stage.addChild(healthText);
       console.log("生命值文本已创建");
 
-      // 创建汉字按钮
-      function createCharacterButtons() {
-        // 随机选择4个汉字
-        const shuffled = [...characters].sort(() => Math.random() - 0.5).slice(0, 4);
-        
-        shuffled.forEach((charObj, i) => {
-          const btn = new PIXI.Text(charObj.char, {
-            fontFamily: 'Arial',
-            fontSize: 36,
-            fill: 0x333333
-          });
-          btn.interactive = true;
-          btn.cursor = 'pointer';
-          btn.x = 100 + i * 150;
-          btn.y = app.screen.height - 70;
-          btn.charData = charObj;
-          
-          app.stage.addChild(btn);
-        });
-      }
+      // 创建汉字按钮 (现在注释掉，因为不再需要)
+      // createCharacterButtons();
 
-      // 创建飞来的目标
+      // 创建飞来的目标 (组合形式：敌人 + 头顶文字)
       function createFlyingTarget() {
-        // 随机选择一个汉字
         const targetCharIndex = Math.floor(Math.random() * characters.length);
         const targetChar = characters[targetCharIndex];
 
-        // 确保获取到有效的字符数据
         if (!targetChar) {
-          console.error("无法获取目标汉字数据!", { index: targetCharIndex, characters });
-          // 可以在这里添加一些错误处理逻辑，比如延迟后重试
-          setTimeout(createFlyingTarget, 1000); // 1秒后重试
+          console.error("无法获取目标汉字数据!");
+          setTimeout(createFlyingTarget, 1000);
           return;
         }
 
-        console.log("创建新目标:", targetChar.char);
+        console.log("创建新目标组合:", targetChar.char);
         currentTarget = targetChar;
         targetHealth = 30; // 重置生命值
         
-        const target = new PIXI.Text(currentTarget.char, { // target 是 PIXI.Text 对象
-          fontFamily: 'Arial',
-          fontSize: 48,
-          fill: 0xFF0000
+        // 创建 Container
+        const targetContainer = new PIXI.Container();
+        targetContainer.charData = currentTarget; // 将数据关联到 Container
+
+        // 1. 创建敌人 Emoji 文本
+        const enemyEmojiText = new PIXI.Text(currentTarget.emoji, {
+          fontFamily: 'Arial', // 确保字体支持 Emoji
+          fontSize: 40 // Emoji 字号可以大一些
         });
-        // 修改初始位置：从顶部随机 x 位置开始
-        target.x = Math.random() * (app.screen.width - target.width); // 随机 X，减去宽度防止部分在屏幕外
-        target.y = -target.height; // 从屏幕顶部外开始
-        target.charData = currentTarget;
+        // 将 Emoji 放在 Container 的 (0, 0) 位置作为基准
+        enemyEmojiText.x = 0;
+        enemyEmojiText.y = 0;
+        enemyEmojiText.anchor.set(0.5, 0.5); // 设置锚点为中心，方便定位
+        targetContainer.addChild(enemyEmojiText);
 
-        currentTargetSprite = target; // 存储当前目标的 Sprite
+        // 2. 创建汉字文本 (显示在 Emoji 上方)
+        const charText = new PIXI.Text(currentTarget.char, {
+          fontFamily: 'Arial',
+          fontSize: 24, // 可以适当调小一点
+          fill: 0x000000, // 黑色文字，更清晰
+          align: 'center'
+        });
+        // 定位文字在 Emoji 头顶居中
+        charText.anchor.set(0.5, 1); // 锚点设置在文字底部中心
+        charText.x = enemyEmojiText.x; // 水平居中对齐 Emoji 中心
+        charText.y = enemyEmojiText.y - enemyEmojiText.height / 2 - 5; // Emoji 中心点上方再减去 Emoji 高度一半，留 5px 间距
+        targetContainer.addChild(charText);
+
+        // 设置 Container 的初始位置 (基于新的内容)
+        const containerBounds = targetContainer.getLocalBounds(); // 获取局部边界来估算尺寸
+        targetContainer.x = Math.random() * (app.screen.width - containerBounds.width);
+        targetContainer.y = -containerBounds.height; // 从屏幕顶部外开始
+
+        currentTargetSprite = targetContainer; // 全局变量现在指向 Container
         
-        app.stage.addChild(target);
-        console.log(`目标 '${currentTarget.char}' 已添加到舞台...`);
+        app.stage.addChild(targetContainer);
+        console.log(`目标组合 '${currentTarget.char}' 已添加到舞台...`);
 
+        // 移动 Container 的逻辑
         const move = (ticker) => {
           const delta = ticker.deltaTime;
-          const speed = 2.5; // 调整移动速度
+          const speed = 1.8; 
 
-          // 计算朝向玩家的方向向量
-          const dx = playerPosition.x - target.x;
-          const dy = playerPosition.y - target.y;
+          // 计算朝向玩家的方向向量 (目标是 Container 的中心)
+          const dx = playerPosition.x - (targetContainer.x + containerBounds.width / 2);
+          const dy = playerPosition.y - (targetContainer.y + containerBounds.height / 2);
           const length = Math.sqrt(dx * dx + dy * dy);
 
-          // 如果距离大于一个很小的值 (避免除以0)，则移动
-          if (length > 1) { // 用大于1像素来判断，避免浮点误差
+          if (length > 1) { 
             const normalizedDx = dx / length;
             const normalizedDy = dy / length;
-
-            target.x += normalizedDx * speed * delta;
-            target.y += normalizedDy * speed * delta;
-          } else {
-             // 如果已经非常接近或到达目标点，可以视为碰撞（或者让碰撞检测处理）
-             // 这里暂时不移动，让下面的碰撞检测逻辑生效
-             console.log(`目标 '${currentTarget.char}' 已到达玩家位置区域`);
+            targetContainer.x += normalizedDx * speed * delta;
+            targetContainer.y += normalizedDy * speed * delta;
           }
-          
-          // target.y += 3 * delta; // 旧的垂直向下移动
 
-          // 碰撞检测逻辑保持不变
-          const enemyBoundsRect = target.getBounds().rectangle;
-          const playerBoundsRect = playerSprite.getBounds().rectangle;
+          // 碰撞检测逻辑 (使用 Container 的边界)
+          const enemyBoundsRect = targetContainer.getBounds().rectangle; 
+          const playerBoundsRect = playerSprite.getBounds().rectangle; 
 
-          if (enemyBoundsRect && playerBoundsRect && enemyBoundsRect.intersects(playerBoundsRect)) {
-             console.log(`目标 '${currentTarget.char}' 击中玩家!`);
-
+          if (enemyBoundsRect && playerBoundsRect && enemyBoundsRect.intersects(playerBoundsRect)) { 
+             console.log(`目标组合 '${currentTarget.char}' 击中玩家!`);
              // 减少玩家生命值
              playerHealth -= 10; // 每次击中减少 10 点生命值
              healthText.text = `生命值: ${playerHealth}`; // 更新显示
              console.log(`玩家生命值剩余: ${playerHealth}`);
 
-             // (可选) 可以在这里添加玩家被击中的视觉/音效反馈
-
-             // 移除敌人
+             // 移除敌人 Container
              app.ticker.remove(move);
-             if (app.stage.children.includes(target)) {
-               app.stage.removeChild(target);
+             if (app.stage.children.includes(targetContainer)) { // 检查并移除 Container
+               app.stage.removeChild(targetContainer);
              }
-
-             // 清理当前目标状态
-             currentTarget = null;
-             currentTargetSprite = null;
-             currentTargetTickerCallback = null;
 
              // 判断游戏是否结束
              if (playerHealth <= 0) {
@@ -200,28 +208,27 @@
                // (待实现) 显示游戏结束画面或提示
                app.ticker.stop(); // 停止所有 ticker 更新，暂停游戏
              } else {
-               // 生成下一个敌人
-               setTimeout(createFlyingTarget, 500); // 短暂延迟后生成下一个
+               setTimeout(createFlyingTarget, 500);
              }
            }
-           // 保留原来的移出屏幕底部的逻辑作为备用，以防万一
-           else if (target.y > app.screen.height + 20) { // 增加一点缓冲
-              console.log(`目标 '${currentTarget.char}' 已移出屏幕底部 (未击中)`);
+           // 移出屏幕底部的逻辑 (也要基于 Container)
+           else if (targetContainer.y > app.screen.height + 20) {
+              console.log(`目标组合 '${currentTarget.char}' 已移出屏幕底部 (未击中)`);
               app.ticker.remove(move);
-              if (app.stage.children.includes(target)) {
-                  app.stage.removeChild(target);
+              if (app.stage.children.includes(targetContainer)) {
+                  app.stage.removeChild(targetContainer);
               }
               currentTarget = null;
               currentTargetSprite = null;
               currentTargetTickerCallback = null;
-              setTimeout(createFlyingTarget, 800); // 创建下一个
+              setTimeout(createFlyingTarget, 800); 
           }
         };
-        currentTargetTickerCallback = move; // 存储当前目标的 Ticker 回调
+        currentTargetTickerCallback = move; // 存储 Container 的 Ticker 回调
         app.ticker.add(move);
       }
 
-      // 检查答案 - 现在检查声调
+      // 检查答案 - 击毁效果定位和移除需要对应 Container
       function checkAnswer(selectedTone) {
         if (!currentTarget) {
           console.log("当前没有目标，无法检查答案");
@@ -236,29 +243,28 @@
 
           // 检查是否击毁
           if (targetHealth <= 0) {
-            console.log(`目标 '${currentTarget.char}' 已击毁!`);
+            console.log(`目标组合 '${currentTarget.char}' 已击毁!`); // 更新日志
 
-            // 停止移动并移除旧目标
+            // 停止移动并移除旧目标 Container
             if (currentTargetTickerCallback) {
               app.ticker.remove(currentTargetTickerCallback);
             }
+            // 使用 currentTargetSprite (现在是 Container)
             if (currentTargetSprite && app.stage.children.includes(currentTargetSprite)) {
-              app.stage.removeChild(currentTargetSprite);
+              app.stage.removeChild(currentTargetSprite); 
             }
 
-            // 显示击毁效果
+            // 显示击毁效果 (定位到 Container 的位置)
             const boom = new PIXI.Text('💥 击毁!', {
               fontFamily: 'Arial',
               fontSize: 36,
               fill: 0xFF4500
             });
-            // 定位到被击毁目标的位置
             if (currentTargetSprite) {
-                 boom.x = currentTargetSprite.x;
-                 boom.y = currentTargetSprite.y;
-            } else { // 如果 sprite 意外丢失，放在屏幕中间
-                 boom.x = app.screen.width / 2 - boom.width / 2;
-                 boom.y = app.screen.height / 2 - boom.height / 2;
+                 boom.x = currentTargetSprite.x + currentTargetSprite.width / 2 - boom.width / 2; // 居中
+                 boom.y = currentTargetSprite.y + currentTargetSprite.height / 2 - boom.height / 2;
+            } else { 
+                 // ... (备用定位逻辑)
             }
             app.stage.addChild(boom);
             
@@ -267,13 +273,13 @@
             currentTargetSprite = null;
             currentTargetTickerCallback = null;
 
-            // 准备下一个目标，并移除击毁效果
+            // 准备下一个目标 Container
             setTimeout(() => {
               if (app.stage.children.includes(boom)) {
                  app.stage.removeChild(boom);
               }
               createFlyingTarget();
-            }, 800); // 延迟后创建新目标
+            }, 800); // 延迟后创建新目标 Container
 
           } else {
             // 未击毁，仅显示命中效果
@@ -311,7 +317,7 @@
       }
 
       // 初始化游戏
-      createCharacterButtons();
+      // createCharacterButtons();
       createFlyingTarget();
 
       // 绑定音调按钮 - 调用新的 checkAnswer
