@@ -189,7 +189,7 @@ PinyinShooterGame.GameLogic = {
     checkAnswer(selectedTone) {
         if (this.isGameOver || !this.currentTarget) {
             console.log("当前没有目标或游戏已结束，无法检查答案");
-            return;
+            return false;
         }
 
         console.log(`检查答案: 目标 '${this.currentTarget.char}'(tone ${this.currentTarget.tone}), 选择 tone ${selectedTone}`);
@@ -212,6 +212,7 @@ PinyinShooterGame.GameLogic = {
                     stroke: '#006400', strokeThickness: 3
                 }, this.app);
             }
+            return true;
         } else { // 声调错误
             console.log(`声调错误! 目标 '${this.currentTarget.char}' 需要 tone ${this.currentTarget.tone}, 选择了 tone ${selectedTone}`);
             this.Audio.playErrorSound();
@@ -221,6 +222,7 @@ PinyinShooterGame.GameLogic = {
                 fontFamily: 'Arial', fontSize: 50, fill: 0xFF0000,
                 stroke: '#8B0000', strokeThickness: 3
             }, this.app);
+            return false;
         }
     },
 
