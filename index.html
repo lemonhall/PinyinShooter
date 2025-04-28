@@ -19,9 +19,9 @@
       z-index: 10;
     }
     .tone-btn { 
-      font-size: 32px;
-      margin: 5px 8px;
-      padding: 12px 18px;
+      font-size: 48px;
+      margin: 10px 12px;
+      padding: 18px 25px;
     }
   </style>
 </head>
@@ -147,25 +147,19 @@
       // 创建玩家图形 (使用 SVG 盾牌)
       const playerSvgString = '<svg width="60" height="70" viewBox="0 0 60 70" xmlns="http://www.w3.org/2000/svg"><path d="M 5 15 A 25 25 0 0 1 55 15 L 55 50 L 30 65 L 5 50 Z" fill="dodgerblue" stroke="black" stroke-width="2"/></svg>';
       playerSprite = new PIXI.Graphics().svg(playerSvgString);
-
-      /* // 移除旧的矩形绘制代码
-      playerSprite = new PIXI.Graphics()
-        .beginFill(0x0000FF) // 蓝色
-        .drawRect(0, 0, 80, 20) // 宽度80, 高度20
-        .endFill();
-      */
+      playerSprite.scale.set(2.5, 2.5); // 将玩家盾牌放大到 2.5 倍
+      console.log("玩家 (SVG盾牌) 已创建并添加到舞台，已缩放");
 
       // 定位玩家 (基于新的 SVG 图形尺寸自动计算居中)
       playerSprite.x = playerPosition.x - playerSprite.width / 2; 
       playerSprite.y = playerPosition.y - playerSprite.height / 2;
       app.stage.addChild(playerSprite);
-      playerSprite.scale.set(1.5, 1.5); // 将玩家盾牌放大 1.5 倍
       console.log("玩家 (SVG盾牌) 已创建并添加到舞台，已缩放");
 
       // 创建生命值文本
       healthText = new PIXI.Text(`生命值: ${playerHealth}`, {
         fontFamily: 'Arial',
-        fontSize: 28,
+        fontSize: 42,
         fill: 0x000000 // 黑色
       });
       healthText.x = 10; // 放在左上角
@@ -180,9 +174,9 @@
       function updateLayout() {
         console.log(`Updating layout for screen: ${app.screen.width}x${app.screen.height}`);
         // 更新玩家位置 (底部居中，根据按钮区域和放大的盾牌向上偏移)
-        const controlsHeightEstimate = 100; // 估算底部按钮区域高度 (可根据 CSS 微调)
+        const controlsHeightEstimate = 160; // 再次调整底部按钮区域高度估算
         playerPosition.x = app.screen.width / 2;
-        playerPosition.y = app.screen.height - (playerSprite.height * playerSprite.scale.y) / 2 - controlsHeightEstimate; // 考虑缩放后的高度和按钮区高度
+        playerPosition.y = app.screen.height - (playerSprite.height * playerSprite.scale.y) / 2 - controlsHeightEstimate - 15; // 额外再向上移15px边距
 
         // 更新玩家 Sprite 位置
         if (playerSprite) {
@@ -221,7 +215,7 @@
         // 1. 创建敌人 Emoji 文本 (添加 name)
         const enemyEmojiText = new PIXI.Text(currentTarget.emoji, { 
             fontFamily: 'Arial', 
-            fontSize: 60
+            fontSize: 100 /* 再次增大 Emoji */
         });
         enemyEmojiText.name = 'emojiText'; // 添加名称
         enemyEmojiText.x = 0;
@@ -232,7 +226,7 @@
         // 2. 创建汉字文本 (添加 name)
         const charText = new PIXI.Text(currentTarget.char, { 
             fontFamily: 'Arial', 
-            fontSize: 36,
+            fontSize: 56,
             fill: 0x000000, align: 'center' 
         });
         charText.name = 'hanziText'; // 添加名称
@@ -256,7 +250,7 @@
         // 移动 Container 的逻辑
         const move = (ticker) => { 
           const delta = ticker.deltaTime;
-          const speed = 0.8; // 再次调慢 (原为 1.2)
+          const speed = 1.5; // 加快速度 (原为 0.8)
 
           // 计算朝向玩家的方向向量 (目标是 Container 的中心)
           const dx = playerPosition.x - (targetContainer.x + containerBounds.width / 2);
@@ -361,7 +355,10 @@
               }
 
               const pinyinText = new PIXI.Text(finalTargetData.pinyin, {
-                fontFamily: 'Arial', fontSize: 18, fill: 0x888888, align: 'center'
+                fontFamily: 'Arial', 
+                fontSize: 56,
+                fill: 0x000000,
+                align: 'center'
               });
               pinyinText.name = 'pinyinText';
               pinyinText.anchor.set(0.5, 1);
@@ -404,10 +401,12 @@
 
           } else {
             // 未击毁，仅显示命中效果 (注意检查 hitText 是否存在)
-            const hitText = new PIXI.Text('✓ 正确!', {
+            const hitText = new PIXI.Text('✓ 正确!', { 
               fontFamily: 'Arial',
-              fontSize: 24,
-              fill: 0x00FF00
+              fontSize: 50,
+              fill: 0x00FF00,
+              stroke: '#006400',
+              strokeThickness: 3
             });
             hitText.x = app.screen.width / 2 - 50;
             hitText.y = 50;
@@ -422,8 +421,10 @@
             console.log(`声调错误! 目标 '${currentTarget.char}' 需要 tone ${currentTarget.tone}, 选择了 tone ${selectedTone}`);
             const missText = new PIXI.Text('✗ 声调错误!', {
               fontFamily: 'Arial',
-              fontSize: 24,
-              fill: 0xFF0000
+              fontSize: 50,
+              fill: 0xFF0000,
+              stroke: '#8B0000',
+              strokeThickness: 3
             });
             missText.x = app.screen.width / 2 - 50;
             missText.y = 50;
