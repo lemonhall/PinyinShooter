@@ -5,15 +5,26 @@
   <title>汉字音调大作战</title>
   <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.2.1/dist/pixi.min.js"></script>
   <style>
-    body { margin: 0; background: #f0f0f0; }
+    body { margin: 0; background: #f0f0f0; overflow: hidden; }
     #game-container { position: relative; }
+    #controls { 
+      text-align: center; 
+      position: absolute;
+      bottom: 10px;
+      left: 0;
+      width: 100%;
+      background-color: rgba(255, 255, 255, 0.8);
+      padding: 10px 0;
+      box-sizing: border-box;
+      z-index: 10;
+    }
     .tone-btn { font-size: 24px; margin: 5px; padding: 10px 15px; }
   </style>
 </head>
 <body>
   <!-- 添加游戏容器 -->
   <div id="game-container">
-    <div id="controls" style="text-align: center; margin-top: 20px;">
+    <div id="controls">
       <button class="tone-btn" data-tone="1">一声 ¯</button>
       <button class="tone-btn" data-tone="2">二声 ˊ</button>
       <button class="tone-btn" data-tone="3">三声 ˇ</button>
@@ -40,9 +51,8 @@
       // 初始化游戏
       const app = new PIXI.Application();
       await app.init({
-        width: 800,
-        height: 500,
-        backgroundColor: 0xE8F4FF
+        backgroundColor: 0xE8F4FF,
+        resizeTo: window
       });
       
       // 确保正确插入canvas
@@ -119,18 +129,16 @@
 
       // 新增：玩家数据
       let playerHealth = 100; // 初始生命值
-      const playerPosition = { x: 400, y: 450 }; // 玩家基准位置 (底部中间)
+      let playerPosition = { x: 0, y: 0 }; // 改为变量，动态计算
       let playerSprite = null; // 玩家的 PIXI 对象
       let healthText = null; // 显示生命值的 PIXI.Text 对象
       // let playerScore = 0; // 如果需要分数，取消注释
       // let scoreText = null;
 
-      // 创建操作区
-      const controlArea = new PIXI.Graphics()
-        .beginFill(0xFFFFFF, 0.7)
-        .drawRect(0, app.screen.height - 100, app.screen.width, 100)
-        .endFill();
-      app.stage.addChild(controlArea);
+      // 创建操作区 (定义高度变量)
+      const controlAreaHeight = 100;
+      const controlArea = new PIXI.Graphics();
+      app.stage.addChild(controlArea); // 先添加，后续在 updateLayout 中绘制 (现在不绘制了)
 
       // 创建玩家图形 (使用 SVG 盾牌)
       const playerSvgString = '<svg width="60" height="70" viewBox="0 0 60 70" xmlns="http://www.w3.org/2000/svg"><path d="M 5 15 A 25 25 0 0 1 55 15 L 55 50 L 30 65 L 5 50 Z" fill="dodgerblue" stroke="black" stroke-width="2"/></svg>';
@@ -162,6 +170,28 @@
 
       // 创建汉字按钮 (现在注释掉，因为不再需要)
       // createCharacterButtons();
+
+      // 定义 updateLayout 函数
+      function updateLayout() {
+        console.log(`Updating layout for screen: ${app.screen.width}x${app.screen.height}`);
+        // 更新玩家位置 (底部居中，根据按钮区域向上偏移)
+        playerPosition.x = app.screen.width / 2;
+        playerPosition.y = app.screen.height - playerSprite.height / 2 - 85; // 距离底部 85px (留出按钮空间)
+
+        // 更新玩家 Sprite 位置
+        if (playerSprite) {
+             playerSprite.x = playerPosition.x - playerSprite.width / 2; 
+             playerSprite.y = playerPosition.y - playerSprite.height / 2;
+        }
+
+        // 更新操作区绘制 (不再需要绘制画布上的操作区)
+        /*
+        controlArea.clear(); // 清除旧的绘制
+        controlArea.beginFill(0xFFFFFF, 0.7)
+                   .drawRect(0, app.screen.height - controlAreaHeight, app.screen.width, controlAreaHeight)
+                   .endFill();
+        */
+      }
 
       // 创建飞来的目标 (组合形式：敌人 + 头顶文字)
       function createFlyingTarget() {
@@ -217,7 +247,7 @@
         // 移动 Container 的逻辑
         const move = (ticker) => { 
           const delta = ticker.deltaTime;
-          const speed = 1.2; // 再次调慢速度
+          const speed = 0.8; // 再次调慢 (原为 1.2)
 
           // 计算朝向玩家的方向向量 (目标是 Container 的中心)
           const dx = playerPosition.x - (targetContainer.x + containerBounds.width / 2);
@@ -395,6 +425,15 @@
             }, 500);
         }
       }
+
+      // 初始布局设置
+      updateLayout(); // 创建完元素后调用一次
+
+      // 添加 resize 事件监听
+      window.addEventListener('resize', () => {
+        app.resize(); // 触发 PixiJS 内部 resize
+        updateLayout(); // 更新我们自己的布局
+      });
 
       // 初始化游戏
       // createCharacterButtons();
