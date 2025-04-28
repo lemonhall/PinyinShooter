@@ -40,6 +40,44 @@
     // Web Audio API 相关
     let audioCtx = null;
 
+    // 屏幕震动相关变量
+    let shakeIntensity = 0;
+    let shakeDuration = 0; // 持续时间 (毫秒)
+    const originalStagePosition = { x: 0, y: 0 };
+
+    // 屏幕震动函数
+    function startShake(intensity, durationMS) {
+      // 简单起见，新的震动会覆盖旧的
+      shakeIntensity = intensity;
+      shakeDuration = durationMS;
+      // 记录当前舞台位置作为原始位置 (如果不在震动中)
+      if (shakeDuration <= 0) { 
+          originalStagePosition.x = app.stage.x;
+          originalStagePosition.y = app.stage.y;
+      }
+    }
+
+    // 精灵闪烁函数
+    function flashSprite(sprite, tintColor, durationMS) {
+      if (!sprite || !sprite.parent || !sprite.visible) return; // 健壮性检查
+      const originalTint = sprite.tint ?? 0xFFFFFF; // 记录原始 tint
+      
+      // // 防止快速连续调用时，旧的 timeout 覆盖新 tint (可选，稍微复杂)
+      // if (sprite._flashTimeoutId) {
+      //   clearTimeout(sprite._flashTimeoutId);
+      // }
+
+      sprite.tint = tintColor;
+
+      sprite._flashTimeoutId = setTimeout(() => {
+          // 仅当 sprite 仍然存在且 tint 未被再次改变时恢复
+          if (sprite.parent && sprite.tint === tintColor) {
+              sprite.tint = originalTint;
+          }
+          // delete sprite._flashTimeoutId; // 清理 ID
+      }, durationMS);
+    }
+
     function playCorrectSound() {
       if (!audioCtx) {
         try {
@@ -63,16 +101,65 @@
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
 
-      oscillator.type = 'sine'; // 正弦波
-      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 音高
-
-      // 控制音量，制造短促提示音效果
+      // 方波
+      oscillator.type = 'square'; 
+      
+      // 模拟快速音符切换 (B6 -> E7)
+      const freq1 = 1976; // B6
+      const freq2 = 2637; // E7
       const now = audioCtx.currentTime;
-      const peakVolume = 0.4; // 不要太大声
-      const duration = 0.15; // 声音持续时间
+      const switchTime = 0.05; // 切换音符的时间点
+      const duration = 0.12; // 总持续时间 (比切换时间稍长)
+
+      oscillator.frequency.setValueAtTime(freq1, now);
+      oscillator.frequency.setValueAtTime(freq2, now + switchTime);
+
+      // 音量控制 (起始音量大，快速衰减)
+      const peakVolume = 0.35; // 方波音量
+      gainNode.gain.setValueAtTime(peakVolume, now); // 立即达到峰值
+      // 可以稍微加一个非常快速的线性下降，增强短促感
+      gainNode.gain.linearRampToValueAtTime(0, now + duration); 
+
+      oscillator.start(now);
+      oscillator.stop(now + duration);
+    }
+
+    // 新增：错误提示音函数
+    function playErrorSound() {
+      if (!audioCtx) {
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+          console.error("Web Audio API is not supported in this browser", e);
+          return;
+        }
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume(); 
+      }
+      if (!audioCtx) return;
+
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.type = 'square'; // 使用方波
+      
+      // 制造快速音高下降效果
+      const startFrequency = 440; // A4
+      const endFrequency = 330;   // E4 (大约下降一个大三度)
+      const now = audioCtx.currentTime;
+      const pitchBendDuration = 0.1; // 音高变化持续时间
+      oscillator.frequency.setValueAtTime(startFrequency, now);
+      oscillator.frequency.linearRampToValueAtTime(endFrequency, now + pitchBendDuration);
+
+      // 音量控制 (可以稍微响一点或持续长一点点以示区别)
+      const peakVolume = 0.35; 
+      const duration = 0.2;
       gainNode.gain.setValueAtTime(0, now);
-      gainNode.gain.linearRampToValueAtTime(peakVolume, now + duration * 0.2); // 快速上升
-      gainNode.gain.linearRampToValueAtTime(0, now + duration); // 缓慢下降
+      gainNode.gain.linearRampToValueAtTime(peakVolume, now + duration * 0.1); // 快速上升
+      gainNode.gain.linearRampToValueAtTime(0, now + duration); // 下降
 
       oscillator.start(now);
       oscillator.stop(now + duration);
@@ -103,6 +190,35 @@
       // 确保正确插入canvas
       const container = document.getElementById('game-container');
       container.insertBefore(app.view, container.firstChild);
+
+      // 添加主 Ticker 循环处理屏幕震动
+      app.ticker.add((ticker) => {
+          const deltaMS = ticker.deltaMS; 
+
+          if (shakeDuration > 0) {
+              shakeDuration -= deltaMS;
+              if (shakeDuration <= 0) {
+                  // 震动结束
+                  app.stage.x = originalStagePosition.x;
+                  app.stage.y = originalStagePosition.y;
+                  shakeIntensity = 0;
+                  shakeDuration = 0;
+              } else {
+                  // 应用震动偏移
+                  const shakeX = (Math.random() - 0.5) * 2 * shakeIntensity;
+                  const shakeY = (Math.random() - 0.5) * 2 * shakeIntensity;
+                  // 基于原始位置计算，防止漂移
+                  app.stage.x = originalStagePosition.x + shakeX;
+                  app.stage.y = originalStagePosition.y + shakeY;
+              }
+          } else {
+             // 确保不在震动时舞台位置正确 (可选，以防万一)
+             if (app.stage.x !== originalStagePosition.x || app.stage.y !== originalStagePosition.y) {
+                 // app.stage.x = originalStagePosition.x;
+                 // app.stage.y = originalStagePosition.y;
+             }
+          }
+      });
 
       // 游戏数据
       const characters = [
@@ -311,6 +427,11 @@
 
           if (enemyBoundsRect && playerBoundsRect && enemyBoundsRect.intersects(playerBoundsRect)) { 
              console.log(`目标组合 '${currentTarget.char}' 击中玩家!`);
+             
+             // **添加玩家被击中效果**
+             startShake(10, 250); // 较强震动
+             flashSprite(playerSprite, 0xFF0000, 200); // 玩家闪红
+
              // 减少玩家生命值
              playerHealth -= 10; // 每次击中减少 10 点生命值
              healthText.text = `生命值: ${playerHealth}`; // 更新显示
@@ -383,6 +504,10 @@
           if (targetHealth <= 0) {
             console.log(`目标组合 '${currentTarget.char}' 已击毁! 显示拼音并朗读...`);
 
+            // **添加击毁效果**
+            startShake(6, 150); // 中等震动
+            // 目标即将消失，闪烁意义不大，可以省略或换成粒子效果(暂不实现)
+
             if (currentTargetTickerCallback) {
               app.ticker.remove(currentTargetTickerCallback);
             }
@@ -444,7 +569,10 @@
             }
 
           } else {
-            // 未击毁，仅显示命中效果 (注意检查 hitText 是否存在)
+            // **添加普通命中效果**
+            startShake(4, 150); // 轻微震动
+            flashSprite(currentTargetSprite, 0xFFFFFF, 100); // 敌人闪白
+
             const hitText = new PIXI.Text('✓ 正确!', { 
               fontFamily: 'Arial',
               fontSize: 50,
@@ -463,6 +591,14 @@
 
         } else if (currentTarget) { // currentTarget 存在但声调错误
             console.log(`声调错误! 目标 '${currentTarget.char}' 需要 tone ${currentTarget.tone}, 选择了 tone ${selectedTone}`);
+            
+            // **播放错误提示音**
+            playErrorSound();
+
+            // **添加错误反馈效果**
+            startShake(6, 150); // 中等震动
+            flashSprite(playerSprite, 0xFF0000, 150); // 玩家闪红
+
             const missText = new PIXI.Text('✗ 声调错误!', {
               fontFamily: 'Arial',
               fontSize: 50,
