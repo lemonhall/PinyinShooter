@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>汉字音调大作战</title>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.2.1/dist/pixi.min.js"></script>
+  <style>
+    body { margin: 0; background: #f0f0f0; }
+    #game-container { position: relative; }
+    .tone-btn { font-size: 24px; margin: 5px; padding: 10px 15px; }
+  </style>
+</head>
+<body>
+  <!-- 添加游戏容器 -->
+  <div id="game-container">
+    <div id="controls" style="text-align: center; margin-top: 20px;">
+      <button class="tone-btn" data-tone="1">一声 ¯</button>
+      <button class="tone-btn" data-tone="2">二声 ˊ</button>
+      <button class="tone-btn" data-tone="3">三声 ˇ</button>
+      <button class="tone-btn" data-tone="4">四声 ˋ</button>
+    </div>
+  </div>
+
+  <script>
+    // 等待DOM加载完成
+    document.addEventListener('DOMContentLoaded', async () => {
+      // 初始化游戏
+      const app = new PIXI.Application();
+      await app.init({
+        width: 800,
+        height: 500,
+        backgroundColor: 0xE8F4FF
+      });
+      
+      // 确保正确插入canvas
+      const container = document.getElementById('game-container');
+      container.insertBefore(app.view, container.firstChild);
+
+      // 游戏数据
+      const characters = [
+        { char: '猫', pinyin: 'māo', tone: 1 },
+        { char: '狗', pinyin: 'gǒu', tone: 3 },
+        { char: '书', pinyin: 'shū', tone: 1 },
+        { char: '笔', pinyin: 'bǐ', tone: 3 },
+        { char: '水', pinyin: 'shuǐ', tone: 3 },
+        { char: '火', pinyin: 'huǒ', tone: 3 },
+        { char: '山', pinyin: 'shān', tone: 1 },
+        { char: '人', pinyin: 'rén', tone: 2 }
+      ];
+
+      let currentTarget = null;
+      let targetHealth = 0;
+      const attackPower = 15;
+
+      // 创建操作区
+      const controlArea = new PIXI.Graphics()
+        .beginFill(0xFFFFFF, 0.7)
+        .drawRect(0, app.screen.height - 100, app.screen.width, 100)
+        .endFill();
+      app.stage.addChild(controlArea);
+
+      // 创建汉字按钮
+      function createCharacterButtons() {
+        // 随机选择4个汉字
+        const shuffled = [...characters].sort(() => Math.random() - 0.5).slice(0, 4);
+        
+        shuffled.forEach((charObj, i) => {
+          const btn = new PIXI.Text(charObj.char, {
+            fontFamily: 'Arial',
+            fontSize: 36,
+            fill: 0x333333
+          });
+          btn.interactive = true;
+          btn.cursor = 'pointer';
+          btn.x = 100 + i * 150;
+          btn.y = app.screen.height - 70;
+          btn.charData = charObj;
+          
+          btn.on('pointerdown', () => {
+            if (currentTarget) {
+              checkAnswer(charObj);
+            }
+          });
+          
+          app.stage.addChild(btn);
+        });
+      }
+
+      // 创建飞来的目标
+      function createFlyingTarget() {
+        // 随机选择一个汉字
+        const targetCharIndex = Math.floor(Math.random() * characters.length);
+        const targetChar = characters[targetCharIndex];
+
+        // 确保获取到有效的字符数据
+        if (!targetChar) {
+          console.error("无法获取目标汉字数据!", { index: targetCharIndex, characters });
+          // 可以在这里添加一些错误处理逻辑，比如延迟后重试
+          setTimeout(createFlyingTarget, 1000); // 1秒后重试
+          return;
+        }
+
+        console.log("创建新目标:", targetChar.char); // 日志：记录创建的目标
+        currentTarget = targetChar;
+        targetHealth = 30; // 2-3次正确攻击可击毁
+        
+        const target = new PIXI.Text(currentTarget.char, { // 直接使用 currentTarget
+          fontFamily: 'Arial',
+          fontSize: 48,
+          fill: 0xFF0000
+        });
+        target.x = app.screen.width; // 从屏幕右侧开始
+        target.y = 100 + Math.random() * 200; // 随机Y轴位置
+        target.charData = currentTarget; // 关联数据
+        
+        app.stage.addChild(target);
+        console.log(`目标 '${currentTarget.char}' 已添加到舞台，位置: x=${target.x.toFixed(0)}, y=${target.y.toFixed(0)}`); // 日志：记录添加和位置
+
+        // 使用PixiJS的ticker代替requestAnimationFrame
+        const move = (ticker) => { // 回调参数是 Ticker 对象
+          const delta = ticker.deltaTime; // 从 Ticker 对象获取 deltaTime
+          target.x -= 2 * delta; // 根据时间差移动，速度更平滑
+          // console.log(`移动目标 '${currentTarget.char}': x=${target.x.toFixed(2)}, delta=${delta.toFixed(2)}`); // 日志：频繁记录移动（可选）
+
+          if (target.x < -target.width) { // 判断条件更精确，考虑文字宽度
+            console.log(`目标 '${currentTarget.char}' 已移出屏幕`); // 日志：记录移出
+            app.ticker.remove(move); // 停止当前移动
+            app.stage.removeChild(target); // 从舞台移除
+            // 稍微延迟后创建下一个目标
+            setTimeout(createFlyingTarget, 800); // 延迟 800ms
+          }
+        };
+        app.ticker.add(move); // 启动移动
+
+        // 这个函数的返回值目前没有被使用
+        // return target;
+      }
+
+      // 检查答案
+      function checkAnswer(selectedChar) {
+        if (selectedChar.char === currentTarget.char) {
+          targetHealth -= attackPower;
+          
+          // 击中效果
+          const hitText = new PIXI.Text('✓ 正确!', {
+            fontFamily: 'Arial',
+            fontSize: 24,
+            fill: 0x00FF00
+          });
+          hitText.x = app.screen.width / 2 - 50;
+          hitText.y = 50;
+          app.stage.addChild(hitText);
+          
+          setTimeout(() => {
+            app.stage.removeChild(hitText);
+          }, 500);
+          
+          if (targetHealth <= 0) {
+            // 击毁效果
+            const boom = new PIXI.Text('💥 击毁!', {
+              fontFamily: 'Arial',
+              fontSize: 36,
+              fill: 0xFF4500
+            });
+            boom.x = target.x;
+            boom.y = target.y;
+            app.stage.addChild(boom);
+            
+            setTimeout(() => {
+              app.stage.removeChild(boom);
+              createFlyingTarget();
+            }, 800);
+          }
+        } else {
+          // 错误反馈
+          const missText = new PIXI.Text('✗ 错误!', {
+            fontFamily: 'Arial',
+            fontSize: 24,
+            fill: 0xFF0000
+          });
+          missText.x = app.screen.width / 2 - 50;
+          missText.y = 50;
+          app.stage.addChild(missText);
+          
+          setTimeout(() => {
+            app.stage.removeChild(missText);
+          }, 500);
+        }
+      }
+
+      // 初始化游戏
+      createCharacterButtons();
+      createFlyingTarget();
+
+      // 绑定音调按钮
+      document.querySelectorAll('.tone-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tone = parseInt(btn.dataset.tone);
+          alert(`你选择了 ${btn.textContent}，后续可以扩展音调验证功能`);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
