@@ -54,12 +54,41 @@
       let currentTargetTickerCallback = null; // 新增：存储当前目标的 Ticker 回调
       const attackPower = 15;
 
+      // 新增：玩家数据
+      let playerHealth = 100; // 初始生命值
+      const playerPosition = { x: 400, y: 450 }; // 玩家基准位置 (底部中间)
+      let playerSprite = null; // 玩家的 PIXI 对象
+      let healthText = null; // 显示生命值的 PIXI.Text 对象
+      // let playerScore = 0; // 如果需要分数，取消注释
+      // let scoreText = null;
+
       // 创建操作区
       const controlArea = new PIXI.Graphics()
         .beginFill(0xFFFFFF, 0.7)
         .drawRect(0, app.screen.height - 100, app.screen.width, 100)
         .endFill();
       app.stage.addChild(controlArea);
+
+      // 创建玩家图形 (一个简单的矩形)
+      playerSprite = new PIXI.Graphics()
+        .beginFill(0x0000FF) // 蓝色
+        .drawRect(0, 0, 80, 20) // 宽度80, 高度20
+        .endFill();
+      playerSprite.x = playerPosition.x - playerSprite.width / 2; // 居中放置
+      playerSprite.y = playerPosition.y - playerSprite.height / 2;
+      app.stage.addChild(playerSprite);
+      console.log("玩家已创建并添加到舞台");
+
+      // 创建生命值文本
+      healthText = new PIXI.Text(`生命值: ${playerHealth}`, {
+        fontFamily: 'Arial',
+        fontSize: 20,
+        fill: 0x000000 // 黑色
+      });
+      healthText.x = 10; // 放在左上角
+      healthText.y = 10;
+      app.stage.addChild(healthText);
+      console.log("生命值文本已创建");
 
       // 创建汉字按钮
       function createCharacterButtons() {
@@ -105,8 +134,9 @@
           fontSize: 48,
           fill: 0xFF0000
         });
-        target.x = app.screen.width;
-        target.y = 100 + Math.random() * 200;
+        // 修改初始位置：从顶部随机 x 位置开始
+        target.x = Math.random() * (app.screen.width - target.width); // 随机 X，减去宽度防止部分在屏幕外
+        target.y = -target.height; // 从屏幕顶部外开始
         target.charData = currentTarget;
 
         currentTargetSprite = target; // 存储当前目标的 Sprite
@@ -116,21 +146,75 @@
 
         const move = (ticker) => {
           const delta = ticker.deltaTime;
-          target.x -= 2 * delta;
+          const speed = 2.5; // 调整移动速度
 
-          if (target.x < -target.width) {
-            console.log(`目标 '${currentTarget.char}' 已移出屏幕`);
-            app.ticker.remove(move); // 停止当前移动回调
-            if (app.stage.children.includes(target)) { // 检查是否还在舞台上
-                 app.stage.removeChild(target); // 从舞台移除
-            }
+          // 计算朝向玩家的方向向量
+          const dx = playerPosition.x - target.x;
+          const dy = playerPosition.y - target.y;
+          const length = Math.sqrt(dx * dx + dy * dy);
 
-            // 清理全局状态
-            currentTarget = null;
-            currentTargetSprite = null;
-            currentTargetTickerCallback = null;
+          // 如果距离大于一个很小的值 (避免除以0)，则移动
+          if (length > 1) { // 用大于1像素来判断，避免浮点误差
+            const normalizedDx = dx / length;
+            const normalizedDy = dy / length;
 
-            setTimeout(createFlyingTarget, 800); // 创建下一个
+            target.x += normalizedDx * speed * delta;
+            target.y += normalizedDy * speed * delta;
+          } else {
+             // 如果已经非常接近或到达目标点，可以视为碰撞（或者让碰撞检测处理）
+             // 这里暂时不移动，让下面的碰撞检测逻辑生效
+             console.log(`目标 '${currentTarget.char}' 已到达玩家位置区域`);
+          }
+          
+          // target.y += 3 * delta; // 旧的垂直向下移动
+
+          // 碰撞检测逻辑保持不变
+          const enemyBoundsRect = target.getBounds().rectangle;
+          const playerBoundsRect = playerSprite.getBounds().rectangle;
+
+          if (enemyBoundsRect && playerBoundsRect && enemyBoundsRect.intersects(playerBoundsRect)) {
+             console.log(`目标 '${currentTarget.char}' 击中玩家!`);
+
+             // 减少玩家生命值
+             playerHealth -= 10; // 每次击中减少 10 点生命值
+             healthText.text = `生命值: ${playerHealth}`; // 更新显示
+             console.log(`玩家生命值剩余: ${playerHealth}`);
+
+             // (可选) 可以在这里添加玩家被击中的视觉/音效反馈
+
+             // 移除敌人
+             app.ticker.remove(move);
+             if (app.stage.children.includes(target)) {
+               app.stage.removeChild(target);
+             }
+
+             // 清理当前目标状态
+             currentTarget = null;
+             currentTargetSprite = null;
+             currentTargetTickerCallback = null;
+
+             // 判断游戏是否结束
+             if (playerHealth <= 0) {
+               console.log("游戏结束!");
+               healthText.text = "游戏结束!"; // 更新文本提示
+               // (待实现) 显示游戏结束画面或提示
+               app.ticker.stop(); // 停止所有 ticker 更新，暂停游戏
+             } else {
+               // 生成下一个敌人
+               setTimeout(createFlyingTarget, 500); // 短暂延迟后生成下一个
+             }
+           }
+           // 保留原来的移出屏幕底部的逻辑作为备用，以防万一
+           else if (target.y > app.screen.height + 20) { // 增加一点缓冲
+              console.log(`目标 '${currentTarget.char}' 已移出屏幕底部 (未击中)`);
+              app.ticker.remove(move);
+              if (app.stage.children.includes(target)) {
+                  app.stage.removeChild(target);
+              }
+              currentTarget = null;
+              currentTargetSprite = null;
+              currentTargetTickerCallback = null;
+              setTimeout(createFlyingTarget, 800); // 创建下一个
           }
         };
         currentTargetTickerCallback = move; // 存储当前目标的 Ticker 回调
