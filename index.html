@@ -50,6 +50,8 @@
 
       let currentTarget = null;
       let targetHealth = 0;
+      let currentTargetSprite = null; // 新增：存储当前目标的 PIXI 对象
+      let currentTargetTickerCallback = null; // 新增：存储当前目标的 Ticker 回调
       const attackPower = 15;
 
       // 创建操作区
@@ -76,12 +78,6 @@
           btn.y = app.screen.height - 70;
           btn.charData = charObj;
           
-          btn.on('pointerdown', () => {
-            if (currentTarget) {
-              checkAnswer(charObj);
-            }
-          });
-          
           app.stage.addChild(btn);
         });
       }
@@ -100,80 +96,122 @@
           return;
         }
 
-        console.log("创建新目标:", targetChar.char); // 日志：记录创建的目标
+        console.log("创建新目标:", targetChar.char);
         currentTarget = targetChar;
-        targetHealth = 30; // 2-3次正确攻击可击毁
+        targetHealth = 30; // 重置生命值
         
-        const target = new PIXI.Text(currentTarget.char, { // 直接使用 currentTarget
+        const target = new PIXI.Text(currentTarget.char, { // target 是 PIXI.Text 对象
           fontFamily: 'Arial',
           fontSize: 48,
           fill: 0xFF0000
         });
-        target.x = app.screen.width; // 从屏幕右侧开始
-        target.y = 100 + Math.random() * 200; // 随机Y轴位置
-        target.charData = currentTarget; // 关联数据
+        target.x = app.screen.width;
+        target.y = 100 + Math.random() * 200;
+        target.charData = currentTarget;
+
+        currentTargetSprite = target; // 存储当前目标的 Sprite
         
         app.stage.addChild(target);
-        console.log(`目标 '${currentTarget.char}' 已添加到舞台，位置: x=${target.x.toFixed(0)}, y=${target.y.toFixed(0)}`); // 日志：记录添加和位置
+        console.log(`目标 '${currentTarget.char}' 已添加到舞台...`);
 
-        // 使用PixiJS的ticker代替requestAnimationFrame
-        const move = (ticker) => { // 回调参数是 Ticker 对象
-          const delta = ticker.deltaTime; // 从 Ticker 对象获取 deltaTime
-          target.x -= 2 * delta; // 根据时间差移动，速度更平滑
-          // console.log(`移动目标 '${currentTarget.char}': x=${target.x.toFixed(2)}, delta=${delta.toFixed(2)}`); // 日志：频繁记录移动（可选）
+        const move = (ticker) => {
+          const delta = ticker.deltaTime;
+          target.x -= 2 * delta;
 
-          if (target.x < -target.width) { // 判断条件更精确，考虑文字宽度
-            console.log(`目标 '${currentTarget.char}' 已移出屏幕`); // 日志：记录移出
-            app.ticker.remove(move); // 停止当前移动
-            app.stage.removeChild(target); // 从舞台移除
-            // 稍微延迟后创建下一个目标
-            setTimeout(createFlyingTarget, 800); // 延迟 800ms
+          if (target.x < -target.width) {
+            console.log(`目标 '${currentTarget.char}' 已移出屏幕`);
+            app.ticker.remove(move); // 停止当前移动回调
+            if (app.stage.children.includes(target)) { // 检查是否还在舞台上
+                 app.stage.removeChild(target); // 从舞台移除
+            }
+
+            // 清理全局状态
+            currentTarget = null;
+            currentTargetSprite = null;
+            currentTargetTickerCallback = null;
+
+            setTimeout(createFlyingTarget, 800); // 创建下一个
           }
         };
-        app.ticker.add(move); // 启动移动
-
-        // 这个函数的返回值目前没有被使用
-        // return target;
+        currentTargetTickerCallback = move; // 存储当前目标的 Ticker 回调
+        app.ticker.add(move);
       }
 
-      // 检查答案
-      function checkAnswer(selectedChar) {
-        if (selectedChar.char === currentTarget.char) {
+      // 检查答案 - 现在检查声调
+      function checkAnswer(selectedTone) {
+        if (!currentTarget) {
+          console.log("当前没有目标，无法检查答案");
+          return; // 如果没有目标，则不执行任何操作
+        }
+
+        console.log(`检查答案: 目标 '${currentTarget.char}'(tone ${currentTarget.tone}), 选择 tone ${selectedTone}`); // 日志
+
+        if (selectedTone === currentTarget.tone) {
           targetHealth -= attackPower;
-          
-          // 击中效果
-          const hitText = new PIXI.Text('✓ 正确!', {
-            fontFamily: 'Arial',
-            fontSize: 24,
-            fill: 0x00FF00
-          });
-          hitText.x = app.screen.width / 2 - 50;
-          hitText.y = 50;
-          app.stage.addChild(hitText);
-          
-          setTimeout(() => {
-            app.stage.removeChild(hitText);
-          }, 500);
-          
+          console.log(`声调正确! 目标 '${currentTarget.char}' 生命值剩余: ${targetHealth}`);
+
+          // 检查是否击毁
           if (targetHealth <= 0) {
-            // 击毁效果
+            console.log(`目标 '${currentTarget.char}' 已击毁!`);
+
+            // 停止移动并移除旧目标
+            if (currentTargetTickerCallback) {
+              app.ticker.remove(currentTargetTickerCallback);
+            }
+            if (currentTargetSprite && app.stage.children.includes(currentTargetSprite)) {
+              app.stage.removeChild(currentTargetSprite);
+            }
+
+            // 显示击毁效果
             const boom = new PIXI.Text('💥 击毁!', {
               fontFamily: 'Arial',
               fontSize: 36,
               fill: 0xFF4500
             });
-            boom.x = target.x;
-            boom.y = target.y;
+            // 定位到被击毁目标的位置
+            if (currentTargetSprite) {
+                 boom.x = currentTargetSprite.x;
+                 boom.y = currentTargetSprite.y;
+            } else { // 如果 sprite 意外丢失，放在屏幕中间
+                 boom.x = app.screen.width / 2 - boom.width / 2;
+                 boom.y = app.screen.height / 2 - boom.height / 2;
+            }
             app.stage.addChild(boom);
             
+            // 清理全局状态
+            currentTarget = null;
+            currentTargetSprite = null;
+            currentTargetTickerCallback = null;
+
+            // 准备下一个目标，并移除击毁效果
             setTimeout(() => {
-              app.stage.removeChild(boom);
+              if (app.stage.children.includes(boom)) {
+                 app.stage.removeChild(boom);
+              }
               createFlyingTarget();
-            }, 800);
+            }, 800); // 延迟后创建新目标
+
+          } else {
+            // 未击毁，仅显示命中效果
+            const hitText = new PIXI.Text('✓ 正确!', {
+              fontFamily: 'Arial',
+              fontSize: 24,
+              fill: 0x00FF00
+            });
+            hitText.x = app.screen.width / 2 - 50;
+            hitText.y = 50;
+            app.stage.addChild(hitText);
+            
+            setTimeout(() => {
+              if (app.stage.children.includes(hitText)) {
+                  app.stage.removeChild(hitText);
+              }
+            }, 500);
           }
         } else {
           // 错误反馈
-          const missText = new PIXI.Text('✗ 错误!', {
+          console.log(`声调错误! 目标 '${currentTarget.char}' 需要 tone ${currentTarget.tone}, 选择了 tone ${selectedTone}`); // 日志
+          const missText = new PIXI.Text('✗ 声调错误!', { // 更新提示信息
             fontFamily: 'Arial',
             fontSize: 24,
             fill: 0xFF0000
@@ -192,11 +230,16 @@
       createCharacterButtons();
       createFlyingTarget();
 
-      // 绑定音调按钮
+      // 绑定音调按钮 - 调用新的 checkAnswer
       document.querySelectorAll('.tone-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const tone = parseInt(btn.dataset.tone);
-          alert(`你选择了 ${btn.textContent}，后续可以扩展音调验证功能`);
+          // alert(`你选择了 ${btn.textContent}，后续可以扩展音调验证功能`); // 移除 alert
+          if (currentTarget) { // 确保有目标时才检查
+             checkAnswer(tone); // 调用新的 checkAnswer，传入声调
+          } else {
+             console.log("点击声调按钮，但当前无目标");
+          }
         });
       });
     });
