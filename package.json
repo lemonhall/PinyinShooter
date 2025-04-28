@@ -1,0 +1,15 @@
+{
+  "name": "pinyin-shooter",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",   "scripts": {
+    "build": "esbuild js/main.js --bundle --outfile=dist/bundle.js --minify --sourcemap",
+    "dev": "esbuild js/main.js --bundle --outfile=dist/bundle.js --servedir=. --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.25.3" 
+  }
+}
