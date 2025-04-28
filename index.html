@@ -37,6 +37,47 @@
   </div>
 
   <script>
+    // Web Audio API 相关
+    let audioCtx = null;
+
+    function playCorrectSound() {
+      if (!audioCtx) {
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+          console.error("Web Audio API is not supported in this browser", e);
+          return; // 不支持则无法播放
+        }
+      }
+
+      // 检查 AudioContext 是否处于 suspended 状态 (常见于用户交互前)
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume(); // 尝试恢复
+      }
+      
+      if (!audioCtx) return; // 如果创建失败或不支持，则退出
+
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.type = 'sine'; // 正弦波
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 音高
+
+      // 控制音量，制造短促提示音效果
+      const now = audioCtx.currentTime;
+      const peakVolume = 0.4; // 不要太大声
+      const duration = 0.15; // 声音持续时间
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(peakVolume, now + duration * 0.2); // 快速上升
+      gainNode.gain.linearRampToValueAtTime(0, now + duration); // 缓慢下降
+
+      oscillator.start(now);
+      oscillator.stop(now + duration);
+    }
+
     // 添加 speak 函数
     function speak(text) {
       if ('speechSynthesis' in window) {
@@ -336,6 +377,9 @@
           targetHealth -= attackPower;
           console.log(`声调正确! 目标 '${currentTarget.char}' 生命值剩余: ${targetHealth}`);
 
+          // **播放正确提示音**
+          playCorrectSound();
+
           if (targetHealth <= 0) {
             console.log(`目标组合 '${currentTarget.char}' 已击毁! 显示拼音并朗读...`);
 
@@ -451,9 +495,26 @@
           createFlyingTarget();
       }
 
-      // 绑定音调按钮 - 调用新的 checkAnswer
+      // 绑定音调按钮 - 并在首次点击时尝试激活 AudioContext
+      let isFirstToneClick = true; // 添加标志位
       document.querySelectorAll('.tone-btn').forEach(btn => {
         btn.addEventListener('click', () => {
+          // 首次点击时，尝试创建/恢复 AudioContext
+          if (isFirstToneClick && !audioCtx) {
+             try {
+                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                 console.log("AudioContext created on first click.");
+             } catch (e) {
+                 console.error("Web Audio API is not supported.", e);
+             }
+          }
+          if (audioCtx && audioCtx.state === 'suspended') {
+             audioCtx.resume().then(() => {
+                 console.log("AudioContext resumed on click.");
+             }).catch(e => console.error("Error resuming AudioContext:", e));
+          }
+          isFirstToneClick = false; // 不再是首次点击
+
           const tone = parseInt(btn.dataset.tone);
           // alert(`你选择了 ${btn.textContent}，后续可以扩展音调验证功能`); // 移除 alert
           if (currentTarget) { // 确保有目标时才检查
