@@ -18,7 +18,11 @@
       box-sizing: border-box;
       z-index: 10;
     }
-    .tone-btn { font-size: 24px; margin: 5px; padding: 10px 15px; }
+    .tone-btn { 
+      font-size: 32px;
+      margin: 5px 8px;
+      padding: 12px 18px;
+    }
   </style>
 </head>
 <body>
@@ -155,12 +159,13 @@
       playerSprite.x = playerPosition.x - playerSprite.width / 2; 
       playerSprite.y = playerPosition.y - playerSprite.height / 2;
       app.stage.addChild(playerSprite);
-      console.log("玩家 (SVG盾牌) 已创建并添加到舞台");
+      playerSprite.scale.set(1.5, 1.5); // 将玩家盾牌放大 1.5 倍
+      console.log("玩家 (SVG盾牌) 已创建并添加到舞台，已缩放");
 
       // 创建生命值文本
       healthText = new PIXI.Text(`生命值: ${playerHealth}`, {
         fontFamily: 'Arial',
-        fontSize: 20,
+        fontSize: 28,
         fill: 0x000000 // 黑色
       });
       healthText.x = 10; // 放在左上角
@@ -174,9 +179,10 @@
       // 定义 updateLayout 函数
       function updateLayout() {
         console.log(`Updating layout for screen: ${app.screen.width}x${app.screen.height}`);
-        // 更新玩家位置 (底部居中，根据按钮区域向上偏移)
+        // 更新玩家位置 (底部居中，根据按钮区域和放大的盾牌向上偏移)
+        const controlsHeightEstimate = 100; // 估算底部按钮区域高度 (可根据 CSS 微调)
         playerPosition.x = app.screen.width / 2;
-        playerPosition.y = app.screen.height - playerSprite.height / 2 - 85; // 距离底部 85px (留出按钮空间)
+        playerPosition.y = app.screen.height - (playerSprite.height * playerSprite.scale.y) / 2 - controlsHeightEstimate; // 考虑缩放后的高度和按钮区高度
 
         // 更新玩家 Sprite 位置
         if (playerSprite) {
@@ -214,7 +220,8 @@
 
         // 1. 创建敌人 Emoji 文本 (添加 name)
         const enemyEmojiText = new PIXI.Text(currentTarget.emoji, { 
-            fontFamily: 'Arial', fontSize: 40 
+            fontFamily: 'Arial', 
+            fontSize: 60
         });
         enemyEmojiText.name = 'emojiText'; // 添加名称
         enemyEmojiText.x = 0;
@@ -224,7 +231,9 @@
 
         // 2. 创建汉字文本 (添加 name)
         const charText = new PIXI.Text(currentTarget.char, { 
-            fontFamily: 'Arial', fontSize: 24, fill: 0x000000, align: 'center' 
+            fontFamily: 'Arial', 
+            fontSize: 36,
+            fill: 0x000000, align: 'center' 
         });
         charText.name = 'hanziText'; // 添加名称
         charText.anchor.set(0.5, 1);
