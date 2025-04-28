@@ -66,7 +66,36 @@
         { char: '左', pinyin: 'zuǒ', tone: 3, emoji: '👈' },
         { char: '右', pinyin: 'yòu', tone: 4, emoji: '👉' },
         { char: '大', pinyin: 'dà', tone: 4, emoji: '🐘' },
-        { char: '小', pinyin: 'xiǎo', tone: 3, emoji: '🐭' }
+        { char: '小', pinyin: 'xiǎo', tone: 3, emoji: '🐭' },
+        { char: '车', pinyin: 'chē', tone: 1, emoji: '🚗' },
+        { char: '船', pinyin: 'chuán', tone: 2, emoji: '🚢' },
+        { char: '门', pinyin: 'mén', tone: 2, emoji: '🚪' },
+        { char: '刀', pinyin: 'dāo', tone: 1, emoji: '🔪' },
+        { char: '衣', pinyin: 'yī', tone: 1, emoji: '👕' },
+        { char: '食', pinyin: 'shí', tone: 2, emoji: '🍔' },
+        { char: '住', pinyin: 'zhù', tone: 4, emoji: '🏠' },
+        { char: '行', pinyin: 'xíng', tone: 2, emoji: '🚶' },
+        { char: '手', pinyin: 'shǒu', tone: 3, emoji: '✋' },
+        { char: '足', pinyin: 'zú', tone: 2, emoji: '🦶' },
+        { char: '头', pinyin: 'tóu', tone: 2, emoji: '👤' },
+        { char: '心', pinyin: 'xīn', tone: 1, emoji: '❤️' },
+        { char: '眼', pinyin: 'yǎn', tone: 3, emoji: '👀' },
+        { char: '耳', pinyin: 'ěr', tone: 3, emoji: '👂' },
+        { char: '口', pinyin: 'kǒu', tone: 3, emoji: '👄' },
+        { char: '鼻', pinyin: 'bí', tone: 2, emoji: '👃' },
+        { char: '笑', pinyin: 'xiào', tone: 4, emoji: '😄' },
+        { char: '哭', pinyin: 'kū', tone: 1, emoji: '😭' },
+        { char: '爱', pinyin: 'ài', tone: 4, emoji: '❤️' },
+        { char: '钱', pinyin: 'qián', tone: 2, emoji: '💰' },
+        { char: '球', pinyin: 'qiú', tone: 2, emoji: '⚽' },
+        { char: '灯', pinyin: 'dēng', tone: 1, emoji: '💡' },
+        { char: '画', pinyin: 'huà', tone: 4, emoji: '🖼️' },
+        { char: '唱', pinyin: 'chàng', tone: 4, emoji: '🎤' },
+        { char: '跳', pinyin: 'tiào', tone: 4, emoji: '💃' },
+        { char: '跑', pinyin: 'pǎo', tone: 3, emoji: '🏃' },
+        { char: '飞', pinyin: 'fēi', tone: 1, emoji: '✈️' },
+        { char: '坐', pinyin: 'zuò', tone: 4, emoji: '🪑' },
+        { char: '站', pinyin: 'zhàn', tone: 4, emoji: '🧍' }
       ];
 
       let currentTarget = null;
@@ -90,15 +119,22 @@
         .endFill();
       app.stage.addChild(controlArea);
 
-      // 创建玩家图形 (一个简单的矩形)
+      // 创建玩家图形 (使用 SVG 盾牌)
+      const playerSvgString = '<svg width="60" height="70" viewBox="0 0 60 70" xmlns="http://www.w3.org/2000/svg"><path d="M 5 15 A 25 25 0 0 1 55 15 L 55 50 L 30 65 L 5 50 Z" fill="dodgerblue" stroke="black" stroke-width="2"/></svg>';
+      playerSprite = new PIXI.Graphics().svg(playerSvgString);
+
+      /* // 移除旧的矩形绘制代码
       playerSprite = new PIXI.Graphics()
         .beginFill(0x0000FF) // 蓝色
         .drawRect(0, 0, 80, 20) // 宽度80, 高度20
         .endFill();
-      playerSprite.x = playerPosition.x - playerSprite.width / 2; // 居中放置
+      */
+
+      // 定位玩家 (基于新的 SVG 图形尺寸自动计算居中)
+      playerSprite.x = playerPosition.x - playerSprite.width / 2; 
       playerSprite.y = playerPosition.y - playerSprite.height / 2;
       app.stage.addChild(playerSprite);
-      console.log("玩家已创建并添加到舞台");
+      console.log("玩家 (SVG盾牌) 已创建并添加到舞台");
 
       // 创建生命值文本
       healthText = new PIXI.Text(`生命值: ${playerHealth}`, {
